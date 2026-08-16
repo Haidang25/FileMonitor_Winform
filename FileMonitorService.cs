@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace FileMonitorApps
@@ -57,7 +58,37 @@ namespace FileMonitorApps
         /// <summary>Mẫu lọc mặc định khi bên gọi không chỉ định.</summary>
         private const string DefaultFilter = "*.*";
 
+        /// <summary>
+        /// Khoảng thời gian gộp các sự kiện Changed trùng nhau trên cùng một tệp (mili giây).
+        /// </summary>
+        /// <remarks>
+        /// Một lần lưu tệp thường làm hệ điều hành phát nhiều sự kiện Changed liên tiếp:
+        /// phần mềm ghi nội dung, cập nhật kích thước, rồi cập nhật thời gian sửa đổi.
+        /// Word và Excel còn ghi qua tệp tạm nên số sự kiện càng nhiều.
+        /// Nếu ghi hết thì một thao tác lưu duy nhất tạo ra 3-5 dòng nhật ký giống hệt nhau.
+        ///
+        /// Đánh đổi: hai lần sửa thật sự cách nhau dưới ngưỡng này sẽ bị tính là một.
+        /// 500 ms đủ ngắn để không bỏ sót thao tác của người dùng, đủ dài để gộp một lần lưu.
+        /// </remarks>
+        private const int ChangeDebounceMilliseconds = 500;
+
+        /// <summary>
+        /// Số đường dẫn tối đa được nhớ để so trùng, tránh phình bộ nhớ khi theo dõi lâu.
+        /// </summary>
+        private const int MaxTrackedPaths = 1000;
+
         private FileSystemWatcher watcher;
+
+        /// <summary>
+        /// Thời điểm gần nhất mỗi tệp phát sinh sự kiện Changed đã được ghi nhận.
+        /// </summary>
+        private readonly Dictionary<string, DateTime> recentChanges =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Khóa bảo vệ recentChanges: sự kiện đến từ nhiều luồng khác nhau của thread pool.
+        /// </summary>
+        private readonly object recentChangesLock = new object();
 
         /// <summary>
         /// Phát mỗi khi phát hiện một thay đổi. Chạy trên luồng nền.
@@ -149,10 +180,13 @@ namespace FileMonitorApps
                 ? BufferSizeRecursive
                 : BufferSizeSingleFolder;
 
+            ClearRecentChanges();
+
             watcher.Error += Watcher_Error;
             watcher.Renamed += Watcher_Renamed;
+            watcher.Changed += Watcher_Changed;
 
-            // (Bước sau sẽ đăng ký thêm Created / Changed / Deleted.)
+            // (Bước sau sẽ đăng ký thêm Created / Deleted.)
 
             watcher.EnableRaisingEvents = true;
         }
@@ -172,6 +206,7 @@ namespace FileMonitorApps
                 watcher.EnableRaisingEvents = false;
                 watcher.Error -= Watcher_Error;
                 watcher.Renamed -= Watcher_Renamed;
+                watcher.Changed -= Watcher_Changed;
                 watcher.Dispose();
             }
             catch (Exception)
@@ -182,6 +217,7 @@ namespace FileMonitorApps
             finally
             {
                 watcher = null;
+                ClearRecentChanges();
             }
         }
 
@@ -225,6 +261,96 @@ namespace FileMonitorApps
             if (handler != null)
             {
                 handler(this, new MonitorErrorEventArgs(error));
+            }
+        }
+
+        /// <summary>
+        /// Xử lý sự kiện tệp bị sửa đổi.
+        /// </summary>
+        /// <remarks>
+        /// Sự kiện Changed là loại phát ra dày đặc nhất, nên phải lọc trùng trước khi báo lên.
+        /// Xem chú thích của ChangeDebounceMilliseconds để biết lý do.
+        /// </remarks>
+        private void Watcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            if (e == null || !ShouldReportChange(e.FullPath))
+            {
+                return;
+            }
+
+            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
+        }
+
+        /// <summary>
+        /// Quyết định một sự kiện Changed có đáng báo lên hay chỉ là bản trùng
+        /// của lần thay đổi vừa xảy ra trên cùng tệp đó.
+        /// </summary>
+        /// <returns>true nếu nên báo lên.</returns>
+        private bool ShouldReportChange(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                return false;
+            }
+
+            DateTime now = DateTime.Now;
+
+            lock (recentChangesLock)
+            {
+                DateTime lastTime;
+                if (recentChanges.TryGetValue(fullPath, out lastTime))
+                {
+                    double elapsed = (now - lastTime).TotalMilliseconds;
+
+                    // elapsed < 0 nghĩa là đồng hồ hệ thống vừa bị chỉnh lùi;
+                    // khi đó cứ báo lên còn hơn im lặng bỏ qua.
+                    if (elapsed >= 0 && elapsed < ChangeDebounceMilliseconds)
+                    {
+                        return false;
+                    }
+                }
+
+                recentChanges[fullPath] = now;
+
+                if (recentChanges.Count > MaxTrackedPaths)
+                {
+                    PruneRecentChanges(now);
+                }
+
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Bỏ bớt các đường dẫn đã quá cũ, không còn tác dụng lọc trùng nữa.
+        /// Phải được gọi khi đang giữ recentChangesLock.
+        /// </summary>
+        private void PruneRecentChanges(DateTime now)
+        {
+            List<string> expired = new List<string>();
+
+            foreach (KeyValuePair<string, DateTime> item in recentChanges)
+            {
+                if ((now - item.Value).TotalMilliseconds >= ChangeDebounceMilliseconds)
+                {
+                    expired.Add(item.Key);
+                }
+            }
+
+            foreach (string key in expired)
+            {
+                recentChanges.Remove(key);
+            }
+        }
+
+        /// <summary>
+        /// Xóa toàn bộ lịch sử lọc trùng khi bắt đầu hoặc kết thúc một phiên.
+        /// </summary>
+        private void ClearRecentChanges()
+        {
+            lock (recentChangesLock)
+            {
+                recentChanges.Clear();
             }
         }
 
