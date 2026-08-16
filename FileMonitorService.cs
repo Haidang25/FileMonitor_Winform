@@ -185,8 +185,9 @@ namespace FileMonitorApps
             watcher.Error += Watcher_Error;
             watcher.Renamed += Watcher_Renamed;
             watcher.Changed += Watcher_Changed;
+            watcher.Deleted += Watcher_Deleted;
 
-            // (Bước sau sẽ đăng ký thêm Created / Deleted.)
+            // (Bước sau sẽ đăng ký thêm Created.)
 
             watcher.EnableRaisingEvents = true;
         }
@@ -207,6 +208,7 @@ namespace FileMonitorApps
                 watcher.Error -= Watcher_Error;
                 watcher.Renamed -= Watcher_Renamed;
                 watcher.Changed -= Watcher_Changed;
+                watcher.Deleted -= Watcher_Deleted;
                 watcher.Dispose();
             }
             catch (Exception)
@@ -344,6 +346,27 @@ namespace FileMonitorApps
         }
 
         /// <summary>
+        /// Quên một đường dẫn khỏi lịch sử lọc trùng.
+        /// </summary>
+        /// <remarks>
+        /// Cần gọi khi tệp bị xóa hoặc đổi tên. Nếu không, đường dẫn cũ vẫn còn trong
+        /// lịch sử: một tệp bị xóa rồi được tạo lại và sửa ngay trong vòng nửa giây
+        /// sẽ bị hiểu nhầm là sự kiện trùng và bị bỏ qua.
+        /// </remarks>
+        private void ForgetPath(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                return;
+            }
+
+            lock (recentChangesLock)
+            {
+                recentChanges.Remove(fullPath);
+            }
+        }
+
+        /// <summary>
         /// Xóa toàn bộ lịch sử lọc trùng khi bắt đầu hoặc kết thúc một phiên.
         /// </summary>
         private void ClearRecentChanges()
@@ -352,6 +375,31 @@ namespace FileMonitorApps
             {
                 recentChanges.Clear();
             }
+        }
+
+        /// <summary>
+        /// Xử lý sự kiện tệp hoặc thư mục bị xóa.
+        /// </summary>
+        /// <remarks>
+        /// Không lọc trùng cho loại này: một tệp chỉ bị xóa được một lần, nên sự kiện
+        /// Deleted không phát ra dồn dập như Changed.
+        ///
+        /// Lưu ý về phạm vi: khi xóa cả một thư mục, số sự kiện nhận được không cố định.
+        /// Tùy cách xóa (bỏ vào Thùng rác hay xóa hẳn) mà hệ điều hành có thể chỉ báo một
+        /// sự kiện cho chính thư mục đó, hoặc báo thêm cho từng tệp bên trong.
+        /// Vì vậy không nên dựa vào giả định "mỗi tệp bị xóa là một dòng nhật ký".
+        /// </remarks>
+        private void Watcher_Deleted(object sender, FileSystemEventArgs e)
+        {
+            if (e == null)
+            {
+                return;
+            }
+
+            // Tệp không còn nữa thì lịch sử lọc trùng của nó cũng hết ý nghĩa.
+            ForgetPath(e.FullPath);
+
+            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
         }
 
         /// <summary>
@@ -370,6 +418,14 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
+            if (e == null)
+            {
+                return;
+            }
+
+            // Đường dẫn cũ không còn tồn tại nên bỏ khỏi lịch sử lọc trùng.
+            ForgetPath(e.OldFullPath);
+
             RaiseEventOccurred(FileEventLog.FromRenamedEvent(e));
         }
 
