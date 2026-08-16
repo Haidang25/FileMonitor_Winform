@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.Windows.Forms.DataGridViewCellStyle alternatingRowStyle = new System.Windows.Forms.DataGridViewCellStyle();
             this.components = new System.ComponentModel.Container();
             this.tabMain = new System.Windows.Forms.TabControl();
             this.tabMonitor = new System.Windows.Forms.TabPage();
@@ -37,8 +38,15 @@
             this.lblFilter = new System.Windows.Forms.Label();
             this.cboFileFilter = new System.Windows.Forms.ComboBox();
             this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
+            this.dgvEvents = new System.Windows.Forms.DataGridView();
+            this.colTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colEventType = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.lblEventCount = new System.Windows.Forms.Label();
             this.tabLog = new System.Windows.Forms.TabPage();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
             this.tabMain.SuspendLayout();
             this.tabMonitor.SuspendLayout();
             this.SuspendLayout();
@@ -58,6 +66,8 @@
             // tabMonitor
             //
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
+            this.tabMonitor.Controls.Add(this.lblEventCount);
+            this.tabMonitor.Controls.Add(this.dgvEvents);
             this.tabMonitor.Controls.Add(this.chkIncludeSubdirs);
             this.tabMonitor.Controls.Add(this.cboFileFilter);
             this.tabMonitor.Controls.Add(this.lblFilter);
@@ -130,6 +140,71 @@
             this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
             this.cboFileFilter.TabIndex = 5;
             //
+            // dgvEvents
+            //
+            this.dgvEvents.AllowUserToAddRows = false;
+            this.dgvEvents.AllowUserToDeleteRows = false;
+            this.dgvEvents.AllowUserToResizeRows = false;
+            this.dgvEvents.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            alternatingRowStyle.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(247)))), ((int)(((byte)(247)))), ((int)(((byte)(247)))));
+            this.dgvEvents.AlternatingRowsDefaultCellStyle = alternatingRowStyle;
+            this.dgvEvents.BackgroundColor = System.Drawing.SystemColors.Window;
+            this.dgvEvents.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.dgvEvents.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvEvents.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colTime,
+            this.colEventType,
+            this.colFileName,
+            this.colFullPath});
+            this.dgvEvents.Location = new System.Drawing.Point(19, 145);
+            this.dgvEvents.Name = "dgvEvents";
+            this.dgvEvents.ReadOnly = true;
+            this.dgvEvents.RowHeadersVisible = false;
+            this.dgvEvents.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvEvents.Size = new System.Drawing.Size(838, 330);
+            this.dgvEvents.TabIndex = 9;
+            //
+            // colTime
+            //
+            this.colTime.HeaderText = "Thời gian";
+            this.colTime.Name = "colTime";
+            this.colTime.ReadOnly = true;
+            this.colTime.Width = 100;
+            //
+            // colEventType
+            //
+            this.colEventType.HeaderText = "Loại sự kiện";
+            this.colEventType.Name = "colEventType";
+            this.colEventType.ReadOnly = true;
+            this.colEventType.Width = 120;
+            //
+            // colFileName
+            //
+            this.colFileName.HeaderText = "Tên tệp";
+            this.colFileName.Name = "colFileName";
+            this.colFileName.ReadOnly = true;
+            this.colFileName.Width = 220;
+            //
+            // colFullPath
+            //
+            this.colFullPath.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+            this.colFullPath.HeaderText = "Đường dẫn";
+            this.colFullPath.MinimumWidth = 200;
+            this.colFullPath.Name = "colFullPath";
+            this.colFullPath.ReadOnly = true;
+            //
+            // lblEventCount
+            //
+            this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.lblEventCount.AutoSize = true;
+            this.lblEventCount.Location = new System.Drawing.Point(19, 487);
+            this.lblEventCount.Name = "lblEventCount";
+            this.lblEventCount.Size = new System.Drawing.Size(122, 17);
+            this.lblEventCount.TabIndex = 10;
+            this.lblEventCount.Text = "Tổng số sự kiện: 0";
+            //
             // tabLog
             //
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
@@ -157,6 +232,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "FileMonitor";
             this.Load += new System.EventHandler(this.MainForm_Load);
+            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
             this.tabMain.ResumeLayout(false);
             this.tabMonitor.ResumeLayout(false);
             this.tabMonitor.PerformLayout();
@@ -174,6 +250,12 @@
         private System.Windows.Forms.Label lblFilter;
         private System.Windows.Forms.ComboBox cboFileFilter;
         private System.Windows.Forms.CheckBox chkIncludeSubdirs;
+        private System.Windows.Forms.DataGridView dgvEvents;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colTime;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colEventType;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colFileName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colFullPath;
+        private System.Windows.Forms.Label lblEventCount;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }

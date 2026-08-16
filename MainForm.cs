@@ -22,6 +22,7 @@ namespace FileMonitorApps
         {
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
             LoadFileFilters();
+            UpdateEventCount();
         }
 
         #region Chọn thư mục giám sát
@@ -190,6 +191,20 @@ namespace FileMonitorApps
 
             txtFolderPath.Text = normalizedPath;
             return normalizedPath;
+        }
+
+        #endregion
+
+        #region Danh sách sự kiện
+
+        /// <summary>
+        /// Cập nhật nhãn tổng số sự kiện theo số dòng hiện có trong bảng.
+        /// Lấy trực tiếp từ dgvEvents.Rows.Count để chỉ có một nguồn dữ liệu duy nhất,
+        /// tránh tình trạng biến đếm bị lệch so với nội dung đang hiển thị.
+        /// </summary>
+        private void UpdateEventCount()
+        {
+            lblEventCount.Text = "Tổng số sự kiện: " + dgvEvents.Rows.Count.ToString("N0");
         }
 
         #endregion
