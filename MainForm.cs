@@ -36,6 +36,7 @@ namespace FileMonitorApps
             LoadFileFilters();
             UpdateEventCount();
             SetMonitoringState(false);
+            InitDateFilter();
         }
 
         #region Chọn thư mục giám sát
@@ -220,7 +221,8 @@ namespace FileMonitorApps
         {
             try
             {
-                List<LogEntry> entries = LogStorage.ReadAll();
+                List<LogEntry> allEntries = LogStorage.ReadAll();
+                List<LogEntry> entries = FilterByDate(allEntries);
 
                 // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
                 // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
@@ -229,12 +231,26 @@ namespace FileMonitorApps
                 loadedLogEntries = entries;
                 ShowLogEntries(entries);
 
-                if (entries.Count == 0)
+                if (allEntries.Count == 0)
                 {
                     MessageBox.Show(this,
                         "Chưa có nhật ký nào được ghi." + Environment.NewLine +
                         Environment.NewLine + "Tệp nhật ký: " + LogStorage.LogFilePath,
                         "Nhật ký trống",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                else if (entries.Count == 0)
+                {
+                    // Phân biệt rõ "chưa ghi gì" với "có dữ liệu nhưng ngoài khoảng lọc",
+                    // nếu không người dùng sẽ tưởng chương trình không ghi được nhật ký.
+                    MessageBox.Show(this,
+                        "Không có bản ghi nào trong khoảng từ " +
+                        dtpFrom.Value.ToString("dd/MM/yyyy") + " đến " +
+                        dtpTo.Value.ToString("dd/MM/yyyy") + "." + Environment.NewLine +
+                        Environment.NewLine + "Toàn bộ nhật ký hiện có " +
+                        allEntries.Count.ToString("N0") + " bản ghi.",
+                        "Không có dữ liệu phù hợp",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                 }
@@ -326,6 +342,68 @@ namespace FileMonitorApps
                     "Lỗi",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Đặt khoảng ngày mặc định khi mở chương trình: 7 ngày gần nhất.
+        /// </summary>
+        private void InitDateFilter()
+        {
+            dtpFrom.Value = DateTime.Today.AddDays(-7);
+            dtpTo.Value = DateTime.Today;
+        }
+
+        /// <summary>
+        /// Lọc danh sách nhật ký theo khoảng ngày đang chọn.
+        /// </summary>
+        /// <remarks>
+        /// Ngày kết thúc được lấy tới hết ngày (23:59:59) chứ không phải 00:00:00,
+        /// nếu không thì chọn "đến hôm nay" sẽ bỏ sót toàn bộ sự kiện của chính hôm nay.
+        /// </remarks>
+        private List<LogEntry> FilterByDate(List<LogEntry> entries)
+        {
+            List<LogEntry> result = new List<LogEntry>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            DateTime from = dtpFrom.Value.Date;
+            DateTime to = dtpTo.Value.Date.AddDays(1).AddTicks(-1);
+
+            foreach (LogEntry entry in entries)
+            {
+                if (entry.Time >= from && entry.Time <= to)
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Không cho phép ngày bắt đầu vượt quá ngày kết thúc.
+        /// Tự chỉnh lại thay vì hiện thông báo lỗi, để người dùng đỡ bị làm phiền.
+        /// </summary>
+        private void dtpFrom_ValueChanged(object sender, EventArgs e)
+        {
+            if (dtpFrom.Value.Date > dtpTo.Value.Date)
+            {
+                dtpTo.Value = dtpFrom.Value.Date;
+            }
+        }
+
+        /// <summary>
+        /// Không cho phép ngày kết thúc lùi trước ngày bắt đầu.
+        /// </summary>
+        private void dtpTo_ValueChanged(object sender, EventArgs e)
+        {
+            if (dtpTo.Value.Date < dtpFrom.Value.Date)
+            {
+                dtpFrom.Value = dtpTo.Value.Date;
             }
         }
 

@@ -56,6 +56,10 @@
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
+            this.lblFrom = new System.Windows.Forms.Label();
+            this.dtpFrom = new System.Windows.Forms.DateTimePicker();
+            this.lblTo = new System.Windows.Forms.Label();
+            this.dtpTo = new System.Windows.Forms.DateTimePicker();
             this.tabLog = new System.Windows.Forms.TabPage();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
@@ -261,6 +265,10 @@
             //
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
             this.tabLog.Controls.Add(this.dgvLogHistory);
+            this.tabLog.Controls.Add(this.dtpTo);
+            this.tabLog.Controls.Add(this.lblTo);
+            this.tabLog.Controls.Add(this.dtpFrom);
+            this.tabLog.Controls.Add(this.lblFrom);
             this.tabLog.Controls.Add(this.btnClearLog);
             this.tabLog.Controls.Add(this.btnExportLog);
             this.tabLog.Controls.Add(this.btnLoadLog);
@@ -270,6 +278,42 @@
             this.tabLog.Size = new System.Drawing.Size(876, 531);
             this.tabLog.TabIndex = 1;
             this.tabLog.Text = "Nhật ký";
+            //
+            // lblFrom
+            //
+            this.lblFrom.AutoSize = true;
+            this.lblFrom.Location = new System.Drawing.Point(19, 63);
+            this.lblFrom.Name = "lblFrom";
+            this.lblFrom.Size = new System.Drawing.Size(56, 17);
+            this.lblFrom.TabIndex = 20;
+            this.lblFrom.Text = "Từ ngày:";
+            //
+            // dtpFrom
+            //
+            this.dtpFrom.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            this.dtpFrom.Location = new System.Drawing.Point(85, 59);
+            this.dtpFrom.Name = "dtpFrom";
+            this.dtpFrom.Size = new System.Drawing.Size(150, 25);
+            this.dtpFrom.TabIndex = 21;
+            this.dtpFrom.ValueChanged += new System.EventHandler(this.dtpFrom_ValueChanged);
+            //
+            // lblTo
+            //
+            this.lblTo.AutoSize = true;
+            this.lblTo.Location = new System.Drawing.Point(255, 63);
+            this.lblTo.Name = "lblTo";
+            this.lblTo.Size = new System.Drawing.Size(65, 17);
+            this.lblTo.TabIndex = 22;
+            this.lblTo.Text = "Đến ngày:";
+            //
+            // dtpTo
+            //
+            this.dtpTo.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            this.dtpTo.Location = new System.Drawing.Point(330, 59);
+            this.dtpTo.Name = "dtpTo";
+            this.dtpTo.Size = new System.Drawing.Size(150, 25);
+            this.dtpTo.TabIndex = 23;
+            this.dtpTo.ValueChanged += new System.EventHandler(this.dtpTo_ValueChanged);
             //
             // btnLoadLog
             //
@@ -386,6 +430,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).EndInit();
             this.tabLog.ResumeLayout(false);
+            this.tabLog.PerformLayout();
             this.tabMain.ResumeLayout(false);
             this.tabMonitor.ResumeLayout(false);
             this.tabMonitor.PerformLayout();
@@ -421,6 +466,10 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
         private System.Windows.Forms.SaveFileDialog saveFileDialog;
+        private System.Windows.Forms.Label lblFrom;
+        private System.Windows.Forms.DateTimePicker dtpFrom;
+        private System.Windows.Forms.Label lblTo;
+        private System.Windows.Forms.DateTimePicker dtpTo;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }
