@@ -1,6 +1,6 @@
 ﻿namespace FileMonitorApps
 {
-    partial class Form1
+    partial class MainForm
     {
         /// <summary>
         /// Biến cần thiết cho trình thiết kế (Designer).
@@ -109,7 +109,7 @@
             this.folderBrowserDialog.Description = "Chọn thư mục cần giám sát thay đổi tệp tin:";
             this.folderBrowserDialog.ShowNewFolderButton = false;
             //
-            // Form1
+            // MainForm
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -117,10 +117,10 @@
             this.Controls.Add(this.tabMain);
             this.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.MinimumSize = new System.Drawing.Size(700, 420);
-            this.Name = "Form1";
+            this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "FileMonitor";
-            this.Load += new System.EventHandler(this.Form1_Load);
+            this.Load += new System.EventHandler(this.MainForm_Load);
             this.tabMain.ResumeLayout(false);
             this.tabMonitor.ResumeLayout(false);
             this.tabMonitor.PerformLayout();
