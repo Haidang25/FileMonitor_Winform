@@ -192,9 +192,10 @@
             // lblStatus
             //
             this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.lblStatus.Location = new System.Drawing.Point(637, 105);
+            this.lblStatus.AutoEllipsis = true;
+            this.lblStatus.Location = new System.Drawing.Point(657, 105);
             this.lblStatus.Name = "lblStatus";
-            this.lblStatus.Size = new System.Drawing.Size(220, 24);
+            this.lblStatus.Size = new System.Drawing.Size(200, 24);
             this.lblStatus.TabIndex = 8;
             this.lblStatus.Text = "● Chưa giám sát";
             this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -220,6 +221,7 @@
             this.dgvEvents.Location = new System.Drawing.Point(19, 145);
             this.dgvEvents.Name = "dgvEvents";
             this.dgvEvents.ReadOnly = true;
+            this.dgvEvents.MinimumSize = new System.Drawing.Size(400, 120);
             this.dgvEvents.RowHeadersVisible = false;
             this.dgvEvents.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvEvents.Size = new System.Drawing.Size(838, 330);
@@ -395,6 +397,7 @@
             this.dgvLogHistory.Location = new System.Drawing.Point(19, 145);
             this.dgvLogHistory.Name = "dgvLogHistory";
             this.dgvLogHistory.ReadOnly = true;
+            this.dgvLogHistory.MinimumSize = new System.Drawing.Size(400, 120);
             this.dgvLogHistory.RowHeadersVisible = false;
             this.dgvLogHistory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvLogHistory.Size = new System.Drawing.Size(838, 366);
@@ -447,7 +450,7 @@
             this.ClientSize = new System.Drawing.Size(884, 561);
             this.Controls.Add(this.tabMain);
             this.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.MinimumSize = new System.Drawing.Size(700, 420);
+            this.MinimumSize = new System.Drawing.Size(820, 520);
             this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "FileMonitor";
