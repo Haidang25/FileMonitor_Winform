@@ -150,9 +150,9 @@ namespace FileMonitorApps
                 : BufferSizeSingleFolder;
 
             watcher.Error += Watcher_Error;
+            watcher.Renamed += Watcher_Renamed;
 
-            // (Bước sau sẽ đăng ký Created / Changed / Deleted / Renamed
-            //  và gọi RaiseEventOccurred cho từng thay đổi.)
+            // (Bước sau sẽ đăng ký thêm Created / Changed / Deleted.)
 
             watcher.EnableRaisingEvents = true;
         }
@@ -171,6 +171,7 @@ namespace FileMonitorApps
             {
                 watcher.EnableRaisingEvents = false;
                 watcher.Error -= Watcher_Error;
+                watcher.Renamed -= Watcher_Renamed;
                 watcher.Dispose();
             }
             catch (Exception)
@@ -225,6 +226,25 @@ namespace FileMonitorApps
             {
                 handler(this, new MonitorErrorEventArgs(error));
             }
+        }
+
+        /// <summary>
+        /// Xử lý sự kiện đổi tên tệp hoặc thư mục.
+        /// </summary>
+        /// <remarks>
+        /// Đây là sự kiện duy nhất mang theo hai đường dẫn: FullPath là tên mới,
+        /// OldFullPath là tên trước khi đổi. RenamedEventArgs kế thừa từ
+        /// FileSystemEventArgs, nên nếu vô ý dùng chung một handler cho mọi loại
+        /// sự kiện thì phần đường dẫn cũ sẽ bị bỏ mất — vì vậy sự kiện này
+        /// có handler riêng.
+        ///
+        /// Windows chỉ báo Renamed khi tệp được đổi tên trong cùng một thư mục.
+        /// Di chuyển tệp sang thư mục khác sẽ thành một cặp Deleted + Created,
+        /// kể cả khi tên tệp không đổi.
+        /// </remarks>
+        private void Watcher_Renamed(object sender, RenamedEventArgs e)
+        {
+            RaiseEventOccurred(FileEventLog.FromRenamedEvent(e));
         }
 
         /// <summary>

@@ -24,6 +24,16 @@ namespace FileMonitorApps
         private static string logFilePath;
 
         /// <summary>
+        /// Khóa dùng chung cho mọi thao tác ghi tệp.
+        /// </summary>
+        /// <remarks>
+        /// FileSystemWatcher phát sự kiện trên các luồng khác nhau của thread pool,
+        /// nên Append có thể được gọi đồng thời từ nhiều luồng. Không khóa lại thì
+        /// hai luồng cùng mở tệp sẽ gây lỗi tranh chấp hoặc ghi đè lên nhau.
+        /// </remarks>
+        private static readonly object fileLock = new object();
+
+        /// <summary>
         /// Đường dẫn đầy đủ tới tệp nhật ký, nằm trong thư mục con "Logs"
         /// cạnh tệp chương trình để người dùng dễ tìm.
         /// </summary>
@@ -57,10 +67,13 @@ namespace FileMonitorApps
                 Directory.CreateDirectory(folder);
             }
 
-            // Mở ở chế độ ghi nối để không phải giữ tệp mở suốt quá trình giám sát.
-            using (StreamWriter writer = new StreamWriter(LogFilePath, true, new UTF8Encoding(false)))
+            lock (fileLock)
             {
-                writer.WriteLine(entry.ToLogLine());
+                // Mở ở chế độ ghi nối để không phải giữ tệp mở suốt quá trình giám sát.
+                using (StreamWriter writer = new StreamWriter(LogFilePath, true, new UTF8Encoding(false)))
+                {
+                    writer.WriteLine(entry.ToLogLine());
+                }
             }
         }
 
@@ -77,7 +90,13 @@ namespace FileMonitorApps
                 return entries;
             }
 
-            foreach (string line in File.ReadAllLines(LogFilePath, Encoding.UTF8))
+            string[] lines;
+            lock (fileLock)
+            {
+                lines = File.ReadAllLines(LogFilePath, Encoding.UTF8);
+            }
+
+            foreach (string line in lines)
             {
                 FileEventLog entry;
                 if (FileEventLog.TryParse(line, out entry))
@@ -94,9 +113,12 @@ namespace FileMonitorApps
         /// </summary>
         public static void Clear()
         {
-            if (File.Exists(LogFilePath))
+            lock (fileLock)
             {
-                File.WriteAllText(LogFilePath, string.Empty, new UTF8Encoding(false));
+                if (File.Exists(LogFilePath))
+                {
+                    File.WriteAllText(LogFilePath, string.Empty, new UTF8Encoding(false));
+                }
             }
         }
 

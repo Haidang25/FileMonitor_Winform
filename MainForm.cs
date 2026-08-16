@@ -20,6 +20,21 @@ namespace FileMonitorApps
         private readonly FileMonitorService monitorService = new FileMonitorService();
 
         /// <summary>
+        /// Số sự kiện đã ghi nhận trong phiên giám sát hiện tại.
+        /// </summary>
+        /// <remarks>
+        /// Không lấy từ dgvEvents.Rows.Count vì bảng chỉ giữ lại một số dòng gần nhất,
+        /// còn con số này phải phản ánh tổng số thay đổi thực sự đã bắt được.
+        /// </remarks>
+        private int sessionEventCount;
+
+        /// <summary>
+        /// Số dòng tối đa giữ lại trên bảng sự kiện. Toàn bộ vẫn nằm trong tệp nhật ký.
+        /// Không giới hạn thì một thư mục hoạt động mạnh sẽ làm bảng phình ra vô hạn.
+        /// </summary>
+        private const int MaxDisplayedEvents = 5000;
+
+        /// <summary>
         /// Đang trong phiên giám sát hay không. Giữ thành một trường riêng để
         /// mọi nơi cần bật/tắt nút đều đọc từ cùng một nguồn trạng thái.
         /// </summary>
@@ -42,6 +57,7 @@ namespace FileMonitorApps
         {
             InitializeComponent();
 
+            monitorService.EventOccurred += MonitorService_EventOccurred;
             monitorService.ErrorOccurred += MonitorService_ErrorOccurred;
         }
 
@@ -607,6 +623,10 @@ namespace FileMonitorApps
 
             try
             {
+                dgvEvents.Rows.Clear();
+                sessionEventCount = 0;
+                UpdateEventCount();
+
                 monitorService.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
                 SetMonitoringState(true);
             }
@@ -690,6 +710,86 @@ namespace FileMonitorApps
                 // phần kiểm tra đường dẫn đã được làm ở CheckFolder trước đó.
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Nhận một thay đổi do phần lõi báo lên: ghi xuống tệp rồi hiển thị lên bảng.
+        /// </summary>
+        /// <remarks>
+        /// Hàm này chạy trên LUỒNG NỀN của FileSystemWatcher.
+        /// Việc ghi tệp cố tình làm ngay tại đây, trước khi chuyển luồng: thao tác đĩa
+        /// mà đẩy sang luồng giao diện thì mỗi thay đổi sẽ làm giao diện khựng một nhịp.
+        /// Chỉ phần cập nhật control mới được chuyển về luồng giao diện.
+        /// </remarks>
+        private void MonitorService_EventOccurred(object sender, FileEventOccurredEventArgs e)
+        {
+            if (e == null || e.Entry == null)
+            {
+                return;
+            }
+
+            try
+            {
+                LogStorage.Append(e.Entry);
+            }
+            catch (Exception)
+            {
+                // Không ghi được nhật ký (đĩa đầy, tệp đang bị khóa...) thì vẫn phải
+                // hiển thị sự kiện lên bảng, không được để luồng sự kiện chết theo.
+            }
+
+            // Form có thể đã đóng trong lúc sự kiện đang trên đường tới.
+            if (IsDisposed || !IsHandleCreated)
+            {
+                return;
+            }
+
+            try
+            {
+                // Dùng BeginInvoke với một delegate RIÊNG cho phần hiển thị, thay vì gọi lại
+                // chính hàm này: gọi lại chính nó sẽ khiến bản ghi bị ghi xuống tệp hai lần.
+                BeginInvoke(new Action<FileEventLog>(AddEventRow), e.Entry);
+            }
+            catch (InvalidOperationException)
+            {
+                // Form bị đóng ngay giữa lúc xếp hàng lời gọi.
+            }
+        }
+
+        /// <summary>
+        /// Thêm một dòng lên đầu bảng sự kiện. Luôn chạy trên luồng giao diện.
+        /// </summary>
+        private void AddEventRow(FileEventLog entry)
+        {
+            if (entry == null || dgvEvents.IsDisposed)
+            {
+                return;
+            }
+
+            // Chèn lên đầu để thay đổi mới nhất luôn nhìn thấy ngay, không phải cuộn xuống.
+            dgvEvents.Rows.Insert(0, new object[]
+            {
+                entry.Time.ToString("HH:mm:ss"),
+                entry.EventType.ToString(),
+                entry.FileName,
+                entry.FullPath
+            });
+
+            // Với sự kiện đổi tên, đưa tên cũ vào chú thích của ô đường dẫn:
+            // bảng chỉ có 4 cột theo thiết kế, nhưng thông tin này không được để mất.
+            if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
+            {
+                dgvEvents.Rows[0].Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
+            }
+
+            // Cắt bớt phần cũ nhất khi bảng quá dài. Dữ liệu đầy đủ vẫn nằm trong tệp nhật ký.
+            while (dgvEvents.Rows.Count > MaxDisplayedEvents)
+            {
+                dgvEvents.Rows.RemoveAt(dgvEvents.Rows.Count - 1);
+            }
+
+            sessionEventCount++;
+            UpdateEventCount();
         }
 
         /// <summary>
@@ -797,6 +897,7 @@ namespace FileMonitorApps
         /// </summary>
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            monitorService.EventOccurred -= MonitorService_EventOccurred;
             monitorService.ErrorOccurred -= MonitorService_ErrorOccurred;
             monitorService.Dispose();
         }
@@ -806,13 +907,11 @@ namespace FileMonitorApps
         #region Danh sách sự kiện
 
         /// <summary>
-        /// Cập nhật nhãn tổng số sự kiện theo số dòng hiện có trong bảng.
-        /// Lấy trực tiếp từ dgvEvents.Rows.Count để chỉ có một nguồn dữ liệu duy nhất,
-        /// tránh tình trạng biến đếm bị lệch so với nội dung đang hiển thị.
+        /// Cập nhật nhãn tổng số sự kiện của phiên giám sát hiện tại.
         /// </summary>
         private void UpdateEventCount()
         {
-            lblEventCount.Text = "Tổng số sự kiện: " + dgvEvents.Rows.Count.ToString("N0");
+            lblEventCount.Text = "Tổng số sự kiện: " + sessionEventCount.ToString("N0");
         }
 
         #endregion
