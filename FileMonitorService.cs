@@ -186,8 +186,7 @@ namespace FileMonitorApps
             watcher.Renamed += Watcher_Renamed;
             watcher.Changed += Watcher_Changed;
             watcher.Deleted += Watcher_Deleted;
-
-            // (Bước sau sẽ đăng ký thêm Created.)
+            watcher.Created += Watcher_Created;
 
             watcher.EnableRaisingEvents = true;
         }
@@ -209,6 +208,7 @@ namespace FileMonitorApps
                 watcher.Renamed -= Watcher_Renamed;
                 watcher.Changed -= Watcher_Changed;
                 watcher.Deleted -= Watcher_Deleted;
+                watcher.Created -= Watcher_Created;
                 watcher.Dispose();
             }
             catch (Exception)
@@ -346,6 +346,30 @@ namespace FileMonitorApps
         }
 
         /// <summary>
+        /// Ghi nhận thời điểm hiện tại cho một đường dẫn vào lịch sử lọc trùng,
+        /// để sự kiện Changed xảy ra ngay sau đó được coi là trùng.
+        /// </summary>
+        private void RememberPath(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                return;
+            }
+
+            DateTime now = DateTime.Now;
+
+            lock (recentChangesLock)
+            {
+                recentChanges[fullPath] = now;
+
+                if (recentChanges.Count > MaxTrackedPaths)
+                {
+                    PruneRecentChanges(now);
+                }
+            }
+        }
+
+        /// <summary>
         /// Quên một đường dẫn khỏi lịch sử lọc trùng.
         /// </summary>
         /// <remarks>
@@ -375,6 +399,32 @@ namespace FileMonitorApps
             {
                 recentChanges.Clear();
             }
+        }
+
+        /// <summary>
+        /// Xử lý sự kiện tệp hoặc thư mục được tạo mới.
+        /// </summary>
+        /// <remarks>
+        /// Tạo một tệp gần như luôn kéo theo một sự kiện Changed ngay sau đó, vì phần mềm
+        /// tạo tệp rỗng trước rồi mới ghi nội dung vào. Nếu ghi cả hai thì một thao tác
+        /// duy nhất của người dùng sinh ra hai dòng nhật ký, trong đó dòng thứ hai
+        /// không cho biết thêm điều gì.
+        ///
+        /// Vì vậy sau khi báo Created, đường dẫn được ghi vào lịch sử lọc trùng để
+        /// sự kiện Changed đi liền ngay sau đó bị gộp vào.
+        /// Đánh đổi: nếu người dùng sửa tệp thật sự trong vòng nửa giây kể từ lúc tạo
+        /// thì lần sửa đó không được ghi riêng.
+        /// </remarks>
+        private void Watcher_Created(object sender, FileSystemEventArgs e)
+        {
+            if (e == null)
+            {
+                return;
+            }
+
+            RememberPath(e.FullPath);
+
+            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
         }
 
         /// <summary>
