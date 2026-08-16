@@ -19,6 +19,12 @@ namespace FileMonitorApps
         /// </summary>
         private FileSystemWatcher watcher;
 
+        /// <summary>
+        /// Danh sách nhật ký đang hiển thị ở tab Nhật ký.
+        /// Giữ lại để xuất ra CSV đúng những gì người dùng đang thấy.
+        /// </summary>
+        private List<LogEntry> loadedLogEntries = new List<LogEntry>();
+
         public MainForm()
         {
             InitializeComponent();
@@ -198,6 +204,160 @@ namespace FileMonitorApps
 
             txtFolderPath.Text = normalizedPath;
             return normalizedPath;
+        }
+
+        #endregion
+
+        #region Tab Nhật ký
+
+        /// <summary>Định dạng thời gian hiển thị trong bảng nhật ký.</summary>
+        private const string DisplayTimeFormat = "dd/MM/yyyy HH:mm:ss";
+
+        /// <summary>
+        /// Bấm "Tải log": đọc tệp nhật ký trên đĩa và đổ vào bảng, mới nhất lên đầu.
+        /// </summary>
+        private void btnLoadLog_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                List<LogEntry> entries = LogStorage.ReadAll();
+
+                // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
+                // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
+                entries.Reverse();
+
+                loadedLogEntries = entries;
+                ShowLogEntries(entries);
+
+                if (entries.Count == 0)
+                {
+                    MessageBox.Show(this,
+                        "Chưa có nhật ký nào được ghi." + Environment.NewLine +
+                        Environment.NewLine + "Tệp nhật ký: " + LogStorage.LogFilePath,
+                        "Nhật ký trống",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "Không đọc được tệp nhật ký:" + Environment.NewLine + LogStorage.LogFilePath +
+                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                    "Lỗi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Bấm "Xuất log": lưu danh sách đang hiển thị ra tệp CSV để mở bằng Excel.
+        /// </summary>
+        private void btnExportLog_Click(object sender, EventArgs e)
+        {
+            if (loadedLogEntries.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Chưa có dữ liệu để xuất. Hãy bấm \"Tải log\" trước.",
+                    "Không có dữ liệu",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            saveFileDialog.FileName = "nhatky-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv";
+
+            if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            try
+            {
+                LogStorage.ExportCsv(saveFileDialog.FileName, loadedLogEntries);
+
+                MessageBox.Show(this,
+                    "Đã xuất " + loadedLogEntries.Count.ToString("N0") + " bản ghi ra tệp:" +
+                    Environment.NewLine + saveFileDialog.FileName,
+                    "Xuất thành công",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "Không ghi được tệp CSV." + Environment.NewLine +
+                    Environment.NewLine + "Chi tiết: " + ex.Message,
+                    "Lỗi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Bấm "Xóa log": xóa toàn bộ nội dung tệp nhật ký sau khi người dùng xác nhận.
+        /// </summary>
+        private void btnClearLog_Click(object sender, EventArgs e)
+        {
+            DialogResult answer = MessageBox.Show(this,
+                "Xóa toàn bộ nhật ký đã ghi?" + Environment.NewLine +
+                Environment.NewLine + "Thao tác này không thể hoàn tác.",
+                "Xác nhận xóa",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (answer != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                LogStorage.Clear();
+                loadedLogEntries.Clear();
+                ShowLogEntries(loadedLogEntries);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "Không xóa được tệp nhật ký:" + Environment.NewLine + LogStorage.LogFilePath +
+                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                    "Lỗi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Đổ danh sách nhật ký lên bảng dgvLogHistory.
+        /// </summary>
+        private void ShowLogEntries(List<LogEntry> entries)
+        {
+            dgvLogHistory.Rows.Clear();
+
+            if (entries == null || entries.Count == 0)
+            {
+                return;
+            }
+
+            // Tắt vẽ lại trong lúc thêm hàng loạt để bảng không bị nháy.
+            dgvLogHistory.SuspendLayout();
+            try
+            {
+                foreach (LogEntry entry in entries)
+                {
+                    dgvLogHistory.Rows.Add(
+                        entry.Time.ToString(DisplayTimeFormat),
+                        entry.EventType,
+                        entry.FileName,
+                        entry.FullPath);
+                }
+            }
+            finally
+            {
+                dgvLogHistory.ResumeLayout();
+            }
         }
 
         #endregion

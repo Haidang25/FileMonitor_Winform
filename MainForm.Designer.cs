@@ -47,9 +47,20 @@
             this.colFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.lblEventCount = new System.Windows.Forms.Label();
+            this.btnLoadLog = new System.Windows.Forms.Button();
+            this.btnExportLog = new System.Windows.Forms.Button();
+            this.btnClearLog = new System.Windows.Forms.Button();
+            this.dgvLogHistory = new System.Windows.Forms.DataGridView();
+            this.colLogTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLogType = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
             this.tabLog = new System.Windows.Forms.TabPage();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).BeginInit();
+            this.tabLog.SuspendLayout();
             this.tabMain.SuspendLayout();
             this.tabMonitor.SuspendLayout();
             this.SuspendLayout();
@@ -249,12 +260,110 @@
             // tabLog
             //
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
+            this.tabLog.Controls.Add(this.dgvLogHistory);
+            this.tabLog.Controls.Add(this.btnClearLog);
+            this.tabLog.Controls.Add(this.btnExportLog);
+            this.tabLog.Controls.Add(this.btnLoadLog);
             this.tabLog.Location = new System.Drawing.Point(4, 26);
             this.tabLog.Name = "tabLog";
             this.tabLog.Padding = new System.Windows.Forms.Padding(3);
             this.tabLog.Size = new System.Drawing.Size(876, 531);
             this.tabLog.TabIndex = 1;
             this.tabLog.Text = "Nhật ký";
+            //
+            // btnLoadLog
+            //
+            this.btnLoadLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
+            this.btnLoadLog.FlatAppearance.BorderSize = 0;
+            this.btnLoadLog.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnLoadLog.ForeColor = System.Drawing.Color.White;
+            this.btnLoadLog.Location = new System.Drawing.Point(19, 100);
+            this.btnLoadLog.Name = "btnLoadLog";
+            this.btnLoadLog.Size = new System.Drawing.Size(120, 34);
+            this.btnLoadLog.TabIndex = 0;
+            this.btnLoadLog.Text = "Tải log";
+            this.btnLoadLog.UseVisualStyleBackColor = false;
+            this.btnLoadLog.Click += new System.EventHandler(this.btnLoadLog_Click);
+            //
+            // btnExportLog
+            //
+            this.btnExportLog.Location = new System.Drawing.Point(155, 100);
+            this.btnExportLog.Name = "btnExportLog";
+            this.btnExportLog.Size = new System.Drawing.Size(120, 34);
+            this.btnExportLog.TabIndex = 1;
+            this.btnExportLog.Text = "Xuất log";
+            this.btnExportLog.UseVisualStyleBackColor = true;
+            this.btnExportLog.Click += new System.EventHandler(this.btnExportLog_Click);
+            //
+            // btnClearLog
+            //
+            this.btnClearLog.Location = new System.Drawing.Point(291, 100);
+            this.btnClearLog.Name = "btnClearLog";
+            this.btnClearLog.Size = new System.Drawing.Size(120, 34);
+            this.btnClearLog.TabIndex = 2;
+            this.btnClearLog.Text = "Xóa log";
+            this.btnClearLog.UseVisualStyleBackColor = true;
+            this.btnClearLog.Click += new System.EventHandler(this.btnClearLog_Click);
+            //
+            // dgvLogHistory
+            //
+            this.dgvLogHistory.AllowUserToAddRows = false;
+            this.dgvLogHistory.AllowUserToDeleteRows = false;
+            this.dgvLogHistory.AllowUserToResizeRows = false;
+            this.dgvLogHistory.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.dgvLogHistory.AlternatingRowsDefaultCellStyle = alternatingRowStyle;
+            this.dgvLogHistory.BackgroundColor = System.Drawing.SystemColors.Window;
+            this.dgvLogHistory.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.dgvLogHistory.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvLogHistory.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colLogTime,
+            this.colLogType,
+            this.colLogFileName,
+            this.colLogFullPath});
+            this.dgvLogHistory.Location = new System.Drawing.Point(19, 145);
+            this.dgvLogHistory.Name = "dgvLogHistory";
+            this.dgvLogHistory.ReadOnly = true;
+            this.dgvLogHistory.RowHeadersVisible = false;
+            this.dgvLogHistory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvLogHistory.Size = new System.Drawing.Size(838, 366);
+            this.dgvLogHistory.TabIndex = 3;
+            //
+            // colLogTime
+            //
+            this.colLogTime.HeaderText = "Thời gian";
+            this.colLogTime.Name = "colLogTime";
+            this.colLogTime.ReadOnly = true;
+            this.colLogTime.Width = 150;
+            //
+            // colLogType
+            //
+            this.colLogType.HeaderText = "Loại";
+            this.colLogType.Name = "colLogType";
+            this.colLogType.ReadOnly = true;
+            this.colLogType.Width = 110;
+            //
+            // colLogFileName
+            //
+            this.colLogFileName.HeaderText = "Tên tệp";
+            this.colLogFileName.Name = "colLogFileName";
+            this.colLogFileName.ReadOnly = true;
+            this.colLogFileName.Width = 200;
+            //
+            // colLogFullPath
+            //
+            this.colLogFullPath.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+            this.colLogFullPath.HeaderText = "Đường dẫn";
+            this.colLogFullPath.MinimumWidth = 200;
+            this.colLogFullPath.Name = "colLogFullPath";
+            this.colLogFullPath.ReadOnly = true;
+            //
+            // saveFileDialog
+            //
+            this.saveFileDialog.DefaultExt = "csv";
+            this.saveFileDialog.Filter = "Tệp CSV (*.csv)|*.csv|Tất cả các tệp (*.*)|*.*";
+            this.saveFileDialog.Title = "Xuất nhật ký ra tệp CSV";
             //
             // folderBrowserDialog
             //
@@ -275,6 +384,8 @@
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             this.Load += new System.EventHandler(this.MainForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).EndInit();
+            this.tabLog.ResumeLayout(false);
             this.tabMain.ResumeLayout(false);
             this.tabMonitor.ResumeLayout(false);
             this.tabMonitor.PerformLayout();
@@ -301,6 +412,15 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colFileName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colFullPath;
         private System.Windows.Forms.Label lblEventCount;
+        private System.Windows.Forms.Button btnLoadLog;
+        private System.Windows.Forms.Button btnExportLog;
+        private System.Windows.Forms.Button btnClearLog;
+        private System.Windows.Forms.DataGridView dgvLogHistory;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLogTime;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLogType;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
+        private System.Windows.Forms.SaveFileDialog saveFileDialog;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }
