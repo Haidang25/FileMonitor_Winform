@@ -34,6 +34,8 @@
             this.btnBrowse = new System.Windows.Forms.Button();
             this.txtFolderPath = new System.Windows.Forms.TextBox();
             this.lblFolderPath = new System.Windows.Forms.Label();
+            this.lblFilter = new System.Windows.Forms.Label();
+            this.cboFileFilter = new System.Windows.Forms.ComboBox();
             this.tabLog = new System.Windows.Forms.TabPage();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.tabMain.SuspendLayout();
@@ -55,6 +57,8 @@
             // tabMonitor
             //
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
+            this.tabMonitor.Controls.Add(this.cboFileFilter);
+            this.tabMonitor.Controls.Add(this.lblFilter);
             this.tabMonitor.Controls.Add(this.btnBrowse);
             this.tabMonitor.Controls.Add(this.txtFolderPath);
             this.tabMonitor.Controls.Add(this.lblFolderPath);
@@ -93,6 +97,24 @@
             this.lblFolderPath.Size = new System.Drawing.Size(112, 17);
             this.lblFolderPath.TabIndex = 0;
             this.lblFolderPath.Text = "Thư mục giám sát:";
+            //
+            // lblFilter
+            //
+            this.lblFilter.AutoSize = true;
+            this.lblFilter.Location = new System.Drawing.Point(260, 63);
+            this.lblFilter.Name = "lblFilter";
+            this.lblFilter.Size = new System.Drawing.Size(114, 17);
+            this.lblFilter.TabIndex = 3;
+            this.lblFilter.Text = "Lọc phần mở rộng:";
+            //
+            // cboFileFilter
+            //
+            this.cboFileFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboFileFilter.FormattingEnabled = true;
+            this.cboFileFilter.Location = new System.Drawing.Point(390, 59);
+            this.cboFileFilter.Name = "cboFileFilter";
+            this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
+            this.cboFileFilter.TabIndex = 4;
             //
             // tabLog
             //
@@ -135,6 +157,8 @@
         private System.Windows.Forms.Label lblFolderPath;
         private System.Windows.Forms.TextBox txtFolderPath;
         private System.Windows.Forms.Button btnBrowse;
+        private System.Windows.Forms.Label lblFilter;
+        private System.Windows.Forms.ComboBox cboFileFilter;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }

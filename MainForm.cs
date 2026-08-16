@@ -19,6 +19,7 @@ namespace FileMonitorApps
         private void MainForm_Load(object sender, EventArgs e)
         {
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
+            LoadFileFilters();
         }
 
         #region Chọn thư mục giám sát
@@ -94,6 +95,68 @@ namespace FileMonitorApps
 
         #endregion
 
+        #region Lọc theo phần mở rộng tệp
+
+        /// <summary>
+        /// Một mục trong danh sách lọc: gồm nhãn hiển thị cho người dùng
+        /// và mẫu lọc thực sự sẽ gán cho FileSystemWatcher.Filter.
+        /// </summary>
+        private class FilterItem
+        {
+            public string Display { get; private set; }
+            public string Pattern { get; private set; }
+
+            public FilterItem(string display, string pattern)
+            {
+                Display = display;
+                Pattern = pattern;
+            }
+
+            // ComboBox dùng ToString() để hiển thị nên chỉ cần trả về nhãn.
+            public override string ToString()
+            {
+                return Display;
+            }
+        }
+
+        /// <summary>
+        /// Nạp danh sách phần mở rộng vào ComboBox và chọn sẵn mục "Tất cả".
+        /// </summary>
+        /// <remarks>
+        /// Lưu ý: trên .NET Framework, thuộc tính FileSystemWatcher.Filter chỉ nhận
+        /// MỘT mẫu lọc duy nhất (không hỗ trợ nhiều mẫu ngăn cách bởi dấu chấm phẩy),
+        /// nên mỗi mục ở đây chỉ chứa một phần mở rộng.
+        /// </remarks>
+        private void LoadFileFilters()
+        {
+            cboFileFilter.Items.Clear();
+            cboFileFilter.Items.AddRange(new object[]
+            {
+                new FilterItem("*.* (Tất cả)",      "*.*"),
+                new FilterItem("*.txt (Văn bản)",   "*.txt"),
+                new FilterItem("*.docx (Word)",     "*.docx"),
+                new FilterItem("*.xlsx (Excel)",    "*.xlsx"),
+                new FilterItem("*.pdf (PDF)",       "*.pdf"),
+                new FilterItem("*.png (Hình ảnh)",  "*.png"),
+                new FilterItem("*.cs (Mã nguồn C#)", "*.cs"),
+                new FilterItem("*.log (Nhật ký)",   "*.log")
+            });
+
+            cboFileFilter.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Trả về mẫu lọc đang được chọn để gán cho FileSystemWatcher.Filter.
+        /// Nếu vì lý do nào đó chưa có mục nào được chọn thì mặc định lấy tất cả tệp.
+        /// </summary>
+        private string GetSelectedFilter()
+        {
+            FilterItem selected = cboFileFilter.SelectedItem as FilterItem;
+            return selected != null ? selected.Pattern : "*.*";
+        }
+
+        #endregion
+
         #region Gợi ý trong ô nhập (placeholder)
 
         // .NET Framework chưa có thuộc tính PlaceholderText cho TextBox,
@@ -110,8 +173,16 @@ namespace FileMonitorApps
         /// <param name="hint">Nội dung gợi ý.</param>
         private static void SetCueBanner(TextBox textBox, string hint)
         {
-            // Tham số wParam = 1: vẫn giữ gợi ý khi ô nhập đang được chọn.
-            SendMessage(textBox.Handle, EM_SETCUEBANNER, (IntPtr)1, hint);
+            try
+            {
+                // Tham số wParam = 1: vẫn giữ gợi ý khi ô nhập đang được chọn.
+                SendMessage(textBox.Handle, EM_SETCUEBANNER, (IntPtr)1, hint);
+            }
+            catch (Exception)
+            {
+                // Dòng gợi ý chỉ là chi tiết trang trí. Nếu hệ điều hành không hỗ trợ
+                // thông điệp này thì bỏ qua, không được để ảnh hưởng tới việc mở chương trình.
+            }
         }
 
         #endregion
