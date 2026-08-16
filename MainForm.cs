@@ -25,6 +25,13 @@ namespace FileMonitorApps
         /// </summary>
         private List<LogEntry> loadedLogEntries = new List<LogEntry>();
 
+        /// <summary>
+        /// Toàn bộ nhật ký đọc từ tệp, giữ nguyên chưa lọc.
+        /// Nhờ vậy khi người dùng gõ tìm kiếm hoặc đổi bộ lọc thì chỉ cần lọc lại
+        /// trên bộ nhớ, không phải đọc lại tệp mỗi lần nhấn phím.
+        /// </summary>
+        private List<LogEntry> allLogEntries = new List<LogEntry>();
+
         public MainForm()
         {
             InitializeComponent();
@@ -37,6 +44,8 @@ namespace FileMonitorApps
             UpdateEventCount();
             SetMonitoringState(false);
             InitDateFilter();
+            LoadEventTypeFilters();
+            SetCueBanner(txtSearch, "Tìm theo tên tệp hoặc đường dẫn...");
         }
 
         #region Chọn thư mục giám sát
@@ -221,17 +230,10 @@ namespace FileMonitorApps
         {
             try
             {
-                List<LogEntry> allEntries = LogStorage.ReadAll();
-                List<LogEntry> entries = FilterByDate(allEntries);
+                allLogEntries = LogStorage.ReadAll();
+                ApplyLogFilters();
 
-                // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
-                // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
-                entries.Reverse();
-
-                loadedLogEntries = entries;
-                ShowLogEntries(entries);
-
-                if (allEntries.Count == 0)
+                if (allLogEntries.Count == 0)
                 {
                     MessageBox.Show(this,
                         "Chưa có nhật ký nào được ghi." + Environment.NewLine +
@@ -240,16 +242,16 @@ namespace FileMonitorApps
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                 }
-                else if (entries.Count == 0)
+                else if (loadedLogEntries.Count == 0)
                 {
-                    // Phân biệt rõ "chưa ghi gì" với "có dữ liệu nhưng ngoài khoảng lọc",
+                    // Phân biệt rõ "chưa ghi gì" với "có dữ liệu nhưng bị bộ lọc loại hết",
                     // nếu không người dùng sẽ tưởng chương trình không ghi được nhật ký.
                     MessageBox.Show(this,
-                        "Không có bản ghi nào trong khoảng từ " +
-                        dtpFrom.Value.ToString("dd/MM/yyyy") + " đến " +
-                        dtpTo.Value.ToString("dd/MM/yyyy") + "." + Environment.NewLine +
-                        Environment.NewLine + "Toàn bộ nhật ký hiện có " +
-                        allEntries.Count.ToString("N0") + " bản ghi.",
+                        "Không có bản ghi nào khớp với bộ lọc hiện tại." + Environment.NewLine +
+                        Environment.NewLine + "Toàn bộ nhật ký có " +
+                        allLogEntries.Count.ToString("N0") + " bản ghi. " +
+                        "Hãy thử nới rộng khoảng ngày, xóa từ khóa tìm kiếm " +
+                        "hoặc chọn lại \"Tất cả loại\".",
                         "Không có dữ liệu phù hợp",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
@@ -331,8 +333,8 @@ namespace FileMonitorApps
             try
             {
                 LogStorage.Clear();
-                loadedLogEntries.Clear();
-                ShowLogEntries(loadedLogEntries);
+                allLogEntries.Clear();
+                ApplyLogFilters();
             }
             catch (Exception ex)
             {
@@ -343,6 +345,141 @@ namespace FileMonitorApps
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Nạp danh sách loại sự kiện vào ComboBox lọc.
+        /// Dùng lại lớp FilterItem của tab Giám sát: nhãn hiển thị tách khỏi giá trị thật,
+        /// giá trị rỗng nghĩa là không lọc theo loại.
+        /// </summary>
+        private void LoadEventTypeFilters()
+        {
+            cboEventTypeFilter.Items.Clear();
+            cboEventTypeFilter.Items.AddRange(new object[]
+            {
+                new FilterItem("Tất cả loại",         string.Empty),
+                new FilterItem("Created — Tạo mới",   "Created"),
+                new FilterItem("Changed — Sửa đổi",   "Changed"),
+                new FilterItem("Deleted — Xóa",       "Deleted"),
+                new FilterItem("Renamed — Đổi tên",   "Renamed")
+            });
+
+            cboEventTypeFilter.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Lọc lại danh sách theo cả ba tiêu chí (ngày, từ khóa, loại sự kiện)
+        /// rồi hiển thị kết quả. Hàm này không hiện thông báo nào để người dùng
+        /// gõ tìm kiếm mà không bị hộp thoại làm phiền.
+        /// </summary>
+        private void ApplyLogFilters()
+        {
+            List<LogEntry> result = FilterByDate(allLogEntries);
+            result = FilterByEventType(result);
+            result = FilterByKeyword(result);
+
+            // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
+            // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
+            result.Reverse();
+
+            loadedLogEntries = result;
+            ShowLogEntries(result);
+        }
+
+        /// <summary>
+        /// Lọc theo loại sự kiện đang chọn. Mục "Tất cả loại" giữ nguyên danh sách.
+        /// </summary>
+        private List<LogEntry> FilterByEventType(List<LogEntry> entries)
+        {
+            List<LogEntry> result = new List<LogEntry>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            FilterItem selected = cboEventTypeFilter.SelectedItem as FilterItem;
+            string eventType = selected != null ? selected.Pattern : string.Empty;
+
+            if (eventType.Length == 0)
+            {
+                result.AddRange(entries);
+                return result;
+            }
+
+            foreach (LogEntry entry in entries)
+            {
+                if (string.Equals(entry.EventType, eventType, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Lọc theo từ khóa, so khớp với tên tệp hoặc đường dẫn.
+        /// </summary>
+        /// <remarks>
+        /// Dùng CurrentCultureIgnoreCase thay vì OrdinalIgnoreCase để so sánh
+        /// chữ hoa/chữ thường đúng với tiếng Việt có dấu.
+        /// </remarks>
+        private List<LogEntry> FilterByKeyword(List<LogEntry> entries)
+        {
+            List<LogEntry> result = new List<LogEntry>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            string keyword = txtSearch.Text.Trim();
+
+            if (keyword.Length == 0)
+            {
+                result.AddRange(entries);
+                return result;
+            }
+
+            foreach (LogEntry entry in entries)
+            {
+                if (Contains(entry.FileName, keyword) || Contains(entry.FullPath, keyword))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Kiểm tra chuỗi có chứa từ khóa hay không, bỏ qua phân biệt hoa/thường.
+        /// </summary>
+        private static bool Contains(string value, string keyword)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+
+            return value.IndexOf(keyword, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// Gõ vào ô tìm kiếm thì lọc lại ngay, không cần bấm nút.
+        /// </summary>
+        private void txtSearch_TextChanged(object sender, EventArgs e)
+        {
+            ApplyLogFilters();
+        }
+
+        /// <summary>
+        /// Đổi loại sự kiện thì lọc lại ngay.
+        /// </summary>
+        private void cboEventTypeFilter_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ApplyLogFilters();
         }
 
         /// <summary>
@@ -394,6 +531,8 @@ namespace FileMonitorApps
             {
                 dtpTo.Value = dtpFrom.Value.Date;
             }
+
+            ApplyLogFilters();
         }
 
         /// <summary>
@@ -405,6 +544,8 @@ namespace FileMonitorApps
             {
                 dtpFrom.Value = dtpTo.Value.Date;
             }
+
+            ApplyLogFilters();
         }
 
         /// <summary>

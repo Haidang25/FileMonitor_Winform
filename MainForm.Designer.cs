@@ -56,6 +56,8 @@
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
+            this.txtSearch = new System.Windows.Forms.TextBox();
+            this.cboEventTypeFilter = new System.Windows.Forms.ComboBox();
             this.lblFrom = new System.Windows.Forms.Label();
             this.dtpFrom = new System.Windows.Forms.DateTimePicker();
             this.lblTo = new System.Windows.Forms.Label();
@@ -265,6 +267,8 @@
             //
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
             this.tabLog.Controls.Add(this.dgvLogHistory);
+            this.tabLog.Controls.Add(this.cboEventTypeFilter);
+            this.tabLog.Controls.Add(this.txtSearch);
             this.tabLog.Controls.Add(this.dtpTo);
             this.tabLog.Controls.Add(this.lblTo);
             this.tabLog.Controls.Add(this.dtpFrom);
@@ -278,6 +282,27 @@
             this.tabLog.Size = new System.Drawing.Size(876, 531);
             this.tabLog.TabIndex = 1;
             this.tabLog.Text = "Nhật ký";
+            //
+            // txtSearch
+            //
+            this.txtSearch.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.txtSearch.Location = new System.Drawing.Point(19, 19);
+            this.txtSearch.Name = "txtSearch";
+            this.txtSearch.Size = new System.Drawing.Size(620, 23);
+            this.txtSearch.TabIndex = 10;
+            this.txtSearch.TextChanged += new System.EventHandler(this.txtSearch_TextChanged);
+            //
+            // cboEventTypeFilter
+            //
+            this.cboEventTypeFilter.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.cboEventTypeFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboEventTypeFilter.FormattingEnabled = true;
+            this.cboEventTypeFilter.Location = new System.Drawing.Point(655, 18);
+            this.cboEventTypeFilter.Name = "cboEventTypeFilter";
+            this.cboEventTypeFilter.Size = new System.Drawing.Size(202, 25);
+            this.cboEventTypeFilter.TabIndex = 11;
+            this.cboEventTypeFilter.SelectedIndexChanged += new System.EventHandler(this.cboEventTypeFilter_SelectedIndexChanged);
             //
             // lblFrom
             //
@@ -466,6 +491,8 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
         private System.Windows.Forms.SaveFileDialog saveFileDialog;
+        private System.Windows.Forms.TextBox txtSearch;
+        private System.Windows.Forms.ComboBox cboEventTypeFilter;
         private System.Windows.Forms.Label lblFrom;
         private System.Windows.Forms.DateTimePicker dtpFrom;
         private System.Windows.Forms.Label lblTo;
