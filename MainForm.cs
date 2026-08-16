@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -13,6 +14,11 @@ namespace FileMonitorApps
     /// </summary>
     public partial class MainForm : Form
     {
+        /// <summary>
+        /// Đối tượng theo dõi thư mục. Chỉ khác null khi đang giám sát.
+        /// </summary>
+        private FileSystemWatcher watcher;
+
         public MainForm()
         {
             InitializeComponent();
@@ -23,6 +29,7 @@ namespace FileMonitorApps
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
             LoadFileFilters();
             UpdateEventCount();
+            SetMonitoringState(false);
         }
 
         #region Chọn thư mục giám sát
@@ -191,6 +198,187 @@ namespace FileMonitorApps
 
             txtFolderPath.Text = normalizedPath;
             return normalizedPath;
+        }
+
+        #endregion
+
+        #region Bắt đầu / dừng giám sát
+
+        /// <summary>
+        /// Bấm "Bắt đầu giám sát": kiểm tra thư mục rồi khởi động FileSystemWatcher.
+        /// </summary>
+        private void btnStart_Click(object sender, EventArgs e)
+        {
+            string folderPath = GetValidatedFolderPath();
+            if (folderPath.Length == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                StartWatching(folderPath);
+                SetMonitoringState(true);
+            }
+            catch (Exception ex)
+            {
+                // Nếu khởi động thất bại thì phải dọn sạch, không để lại watcher dở dang.
+                DisposeWatcher();
+                SetMonitoringState(false);
+
+                MessageBox.Show(this,
+                    "Không thể bắt đầu giám sát thư mục:" + Environment.NewLine + folderPath +
+                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                    "Lỗi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Bấm "Dừng giám sát": giải phóng watcher và trả giao diện về trạng thái nghỉ.
+        /// </summary>
+        private void btnStop_Click(object sender, EventArgs e)
+        {
+            DisposeWatcher();
+            SetMonitoringState(false);
+        }
+
+        /// <summary>
+        /// Tạo và khởi động FileSystemWatcher theo cấu hình đang chọn trên giao diện.
+        /// </summary>
+        /// <param name="folderPath">Thư mục cần theo dõi, đã được kiểm tra hợp lệ.</param>
+        private void StartWatching(string folderPath)
+        {
+            // Dọn watcher của lần chạy trước (nếu có) để không bị hai bộ theo dõi cùng chạy.
+            DisposeWatcher();
+
+            watcher = new FileSystemWatcher();
+            watcher.Path = folderPath;
+            watcher.Filter = GetSelectedFilter();
+            watcher.IncludeSubdirectories = chkIncludeSubdirs.Checked;
+
+            // NotifyFilter quyết định thay đổi nào được coi là đáng báo.
+            // Chỉ đăng ký những loại cần thiết để giảm bớt sự kiện nhiễu.
+            watcher.NotifyFilter = NotifyFilters.FileName
+                                 | NotifyFilters.DirectoryName
+                                 | NotifyFilters.LastWrite
+                                 | NotifyFilters.Size;
+
+            // Hệ điều hành lưu tạm các thay đổi vào một bộ đệm trước khi báo cho chương trình.
+            // Khi thư mục thay đổi dồn dập, bộ đệm mặc định (8 KB) có thể bị tràn và
+            // một số sự kiện sẽ bị mất. Đặt lên mức tối đa 64 KB để hạn chế tình huống đó.
+            watcher.InternalBufferSize = 65536;
+
+            // Sự kiện Error báo khi bản thân việc theo dõi gặp sự cố,
+            // ví dụ tràn bộ đệm hoặc thư mục đang theo dõi bị xóa.
+            watcher.Error += Watcher_Error;
+
+            // (Bước sau sẽ đăng ký thêm Created / Changed / Deleted / Renamed
+            //  để ghi từng thay đổi vào bảng dgvEvents.)
+
+            watcher.EnableRaisingEvents = true;
+        }
+
+        /// <summary>
+        /// Dừng và giải phóng watcher hiện tại. Gọi được nhiều lần mà không gây lỗi.
+        /// </summary>
+        private void DisposeWatcher()
+        {
+            if (watcher == null)
+            {
+                return;
+            }
+
+            try
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Error -= Watcher_Error;
+                watcher.Dispose();
+            }
+            catch (Exception)
+            {
+                // Đang trong quá trình dọn dẹp nên bỏ qua lỗi phát sinh,
+                // điều quan trọng là tham chiếu được đặt lại về null ở dưới.
+            }
+            finally
+            {
+                watcher = null;
+            }
+        }
+
+        /// <summary>
+        /// Xử lý sự cố của chính bộ theo dõi (tràn bộ đệm, mất thư mục đang theo dõi...).
+        /// </summary>
+        /// <remarks>
+        /// FileSystemWatcher phát sự kiện trên LUỒNG NỀN, không phải luồng giao diện.
+        /// Windows Forms chỉ cho phép đụng tới control từ đúng luồng đã tạo ra nó,
+        /// nên phải chuyển lời gọi về luồng giao diện bằng BeginInvoke trước khi cập nhật.
+        /// </remarks>
+        private void Watcher_Error(object sender, ErrorEventArgs e)
+        {
+            // Form có thể đã đóng trong lúc sự kiện đang trên đường tới.
+            if (IsDisposed || !IsHandleCreated)
+            {
+                return;
+            }
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new ErrorEventHandler(Watcher_Error), new object[] { sender, e });
+                return;
+            }
+
+            Exception error = e.GetException();
+
+            DisposeWatcher();
+            SetMonitoringState(false);
+
+            MessageBox.Show(this,
+                "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
+                Environment.NewLine +
+                "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa hoặc bị ngắt kết nối, " +
+                "hoặc có quá nhiều thay đổi cùng lúc làm tràn bộ đệm." + Environment.NewLine +
+                Environment.NewLine + "Chi tiết: " + (error != null ? error.Message : "không rõ"),
+                "Lỗi giám sát",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Cập nhật giao diện theo trạng thái đang giám sát hay đang nghỉ.
+        /// </summary>
+        /// <param name="isMonitoring">true khi bộ theo dõi đang chạy.</param>
+        private void SetMonitoringState(bool isMonitoring)
+        {
+            btnStart.Enabled = !isMonitoring;
+            btnStop.Enabled = isMonitoring;
+
+            // Khóa phần cấu hình trong lúc đang chạy, nếu không cấu hình hiển thị
+            // sẽ không còn khớp với cấu hình mà watcher đang thực sự dùng.
+            txtFolderPath.Enabled = !isMonitoring;
+            btnBrowse.Enabled = !isMonitoring;
+            chkIncludeSubdirs.Enabled = !isMonitoring;
+            cboFileFilter.Enabled = !isMonitoring;
+
+            if (isMonitoring)
+            {
+                lblStatus.Text = "● Đang giám sát";
+                lblStatus.ForeColor = Color.FromArgb(16, 124, 16);
+            }
+            else
+            {
+                lblStatus.Text = "● Chưa giám sát";
+                lblStatus.ForeColor = Color.Gray;
+            }
+        }
+
+        /// <summary>
+        /// Giải phóng bộ theo dõi khi đóng chương trình để không bỏ sót tài nguyên.
+        /// </summary>
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            DisposeWatcher();
         }
 
         #endregion

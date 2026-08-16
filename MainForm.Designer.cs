@@ -38,6 +38,9 @@
             this.lblFilter = new System.Windows.Forms.Label();
             this.cboFileFilter = new System.Windows.Forms.ComboBox();
             this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
+            this.btnStart = new System.Windows.Forms.Button();
+            this.btnStop = new System.Windows.Forms.Button();
+            this.lblStatus = new System.Windows.Forms.Label();
             this.dgvEvents = new System.Windows.Forms.DataGridView();
             this.colTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colEventType = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -66,6 +69,9 @@
             // tabMonitor
             //
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
+            this.tabMonitor.Controls.Add(this.lblStatus);
+            this.tabMonitor.Controls.Add(this.btnStop);
+            this.tabMonitor.Controls.Add(this.btnStart);
             this.tabMonitor.Controls.Add(this.lblEventCount);
             this.tabMonitor.Controls.Add(this.dgvEvents);
             this.tabMonitor.Controls.Add(this.chkIncludeSubdirs);
@@ -139,6 +145,41 @@
             this.cboFileFilter.Name = "cboFileFilter";
             this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
             this.cboFileFilter.TabIndex = 5;
+            //
+            // btnStart
+            //
+            this.btnStart.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
+            this.btnStart.FlatAppearance.BorderSize = 0;
+            this.btnStart.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnStart.ForeColor = System.Drawing.Color.White;
+            this.btnStart.Location = new System.Drawing.Point(19, 100);
+            this.btnStart.Name = "btnStart";
+            this.btnStart.Size = new System.Drawing.Size(170, 34);
+            this.btnStart.TabIndex = 6;
+            this.btnStart.Text = "Bắt đầu giám sát";
+            this.btnStart.UseVisualStyleBackColor = false;
+            this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
+            //
+            // btnStop
+            //
+            this.btnStop.Enabled = false;
+            this.btnStop.Location = new System.Drawing.Point(205, 100);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.Size = new System.Drawing.Size(170, 34);
+            this.btnStop.TabIndex = 7;
+            this.btnStop.Text = "Dừng giám sát";
+            this.btnStop.UseVisualStyleBackColor = true;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            //
+            // lblStatus
+            //
+            this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblStatus.Location = new System.Drawing.Point(637, 105);
+            this.lblStatus.Name = "lblStatus";
+            this.lblStatus.Size = new System.Drawing.Size(220, 24);
+            this.lblStatus.TabIndex = 8;
+            this.lblStatus.Text = "● Chưa giám sát";
+            this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             //
             // dgvEvents
             //
@@ -231,6 +272,7 @@
             this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "FileMonitor";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             this.Load += new System.EventHandler(this.MainForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
             this.tabMain.ResumeLayout(false);
@@ -250,6 +292,9 @@
         private System.Windows.Forms.Label lblFilter;
         private System.Windows.Forms.ComboBox cboFileFilter;
         private System.Windows.Forms.CheckBox chkIncludeSubdirs;
+        private System.Windows.Forms.Button btnStart;
+        private System.Windows.Forms.Button btnStop;
+        private System.Windows.Forms.Label lblStatus;
         private System.Windows.Forms.DataGridView dgvEvents;
         private System.Windows.Forms.DataGridViewTextBoxColumn colTime;
         private System.Windows.Forms.DataGridViewTextBoxColumn colEventType;
