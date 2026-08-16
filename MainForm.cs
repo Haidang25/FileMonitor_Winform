@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Windows.Forms;
 
 namespace FileMonitorApps
@@ -25,8 +27,8 @@ namespace FileMonitorApps
         #region Chọn thư mục giám sát
 
         /// <summary>
-        /// Xử lý sự kiện bấm nút "Chọn thư mục": mở hộp thoại duyệt thư mục
-        /// và điền đường dẫn người dùng chọn vào ô txtFolderPath.
+        /// Xử lý sự kiện bấm nút "Chọn thư mục": mở hộp thoại duyệt thư mục,
+        /// kiểm tra thư mục vừa chọn rồi điền vào ô txtFolderPath.
         /// </summary>
         private void btnBrowse_Click(object sender, EventArgs e)
         {
@@ -42,7 +44,14 @@ namespace FileMonitorApps
 
                 if (folderBrowserDialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    txtFolderPath.Text = folderBrowserDialog.SelectedPath;
+                    string normalizedPath;
+
+                    // Người dùng vẫn có thể chọn thư mục mà tài khoản hiện tại không đọc được
+                    // (ví dụ C:\\System Volume Information), nên phải kiểm tra trước khi nhận.
+                    if (TryValidateFolder(folderBrowserDialog.SelectedPath, out normalizedPath))
+                    {
+                        txtFolderPath.Text = normalizedPath;
+                    }
                 }
             }
             catch (Exception ex)
@@ -59,38 +68,128 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Trả về đường dẫn thư mục đang được chọn sau khi đã kiểm tra hợp lệ.
-        /// Nếu không hợp lệ, hiển thị thông báo và trả về chuỗi rỗng.
-        /// Các bước sau (bắt đầu giám sát) sẽ dùng lại phương thức này.
+        /// Kiểm tra đường dẫn thư mục và thông báo cho người dùng nếu không hợp lệ.
         /// </summary>
-        private string GetValidatedFolderPath()
+        /// <param name="rawPath">Đường dẫn người dùng nhập hoặc chọn.</param>
+        /// <param name="normalizedPath">Đường dẫn đã chuẩn hóa, chỉ có giá trị khi hàm trả về true.</param>
+        /// <returns>true nếu thư mục tồn tại và đọc được.</returns>
+        private bool TryValidateFolder(string rawPath, out string normalizedPath)
         {
-            string path = txtFolderPath.Text.Trim();
+            string errorMessage;
+
+            if (CheckFolder(rawPath, out normalizedPath, out errorMessage))
+            {
+                return true;
+            }
+
+            MessageBox.Show(this,
+                errorMessage,
+                "Đường dẫn không hợp lệ",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+
+        /// <summary>
+        /// Chuẩn hóa và kiểm tra một đường dẫn thư mục.
+        /// Hàm này không đụng tới giao diện để có thể kiểm thử độc lập.
+        /// </summary>
+        /// <param name="rawPath">Đường dẫn cần kiểm tra.</param>
+        /// <param name="normalizedPath">Đường dẫn tuyệt đối đã chuẩn hóa (rỗng nếu không hợp lệ).</param>
+        /// <param name="errorMessage">Mô tả lỗi để hiển thị (rỗng nếu hợp lệ).</param>
+        /// <returns>true nếu thư mục tồn tại và tài khoản hiện tại đọc được.</returns>
+        private static bool CheckFolder(string rawPath, out string normalizedPath, out string errorMessage)
+        {
+            normalizedPath = string.Empty;
+            errorMessage = string.Empty;
+
+            // Bỏ khoảng trắng và dấu nháy kép khi người dùng dán đường dẫn từ File Explorer.
+            string path = (rawPath ?? string.Empty).Trim().Trim('"');
 
             if (path.Length == 0)
             {
-                MessageBox.Show(this,
-                    "Vui lòng chọn thư mục cần giám sát.",
-                    "Thiếu thông tin",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                txtFolderPath.Focus();
-                return string.Empty;
+                errorMessage = "Vui lòng chọn thư mục cần giám sát.";
+                return false;
+            }
+
+            // Chuẩn hóa: chuyển đường dẫn tương đối thành tuyệt đối, gộp dấu gạch chéo thừa.
+            try
+            {
+                path = Path.GetFullPath(path);
+            }
+            catch (ArgumentException)
+            {
+                errorMessage = "Đường dẫn chứa ký tự không hợp lệ:" + Environment.NewLine + rawPath;
+                return false;
+            }
+            catch (NotSupportedException)
+            {
+                errorMessage = "Định dạng đường dẫn không được hỗ trợ:" + Environment.NewLine + rawPath;
+                return false;
+            }
+            catch (PathTooLongException)
+            {
+                errorMessage = "Đường dẫn quá dài so với giới hạn của hệ điều hành.";
+                return false;
+            }
+            catch (SecurityException)
+            {
+                errorMessage = "Không đủ quyền để xử lý đường dẫn này:" + Environment.NewLine + rawPath;
+                return false;
             }
 
             if (!Directory.Exists(path))
             {
-                MessageBox.Show(this,
-                    "Thư mục không tồn tại hoặc không truy cập được:" + Environment.NewLine + path,
-                    "Đường dẫn không hợp lệ",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                errorMessage = "Thư mục không tồn tại:" + Environment.NewLine + path;
+                return false;
+            }
+
+            // Thư mục tồn tại chưa chắc đã đọc được. Thử liệt kê một phần tử đầu tiên
+            // để phát hiện sớm lỗi phân quyền, thay vì để FileSystemWatcher báo lỗi khó hiểu về sau.
+            try
+            {
+                using (IEnumerator<string> entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator())
+                {
+                    entries.MoveNext();
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                errorMessage = "Tài khoản hiện tại không có quyền đọc thư mục:" + Environment.NewLine + path +
+                    Environment.NewLine + Environment.NewLine +
+                    "Hãy chọn thư mục khác, hoặc chạy chương trình với quyền Administrator.";
+                return false;
+            }
+            catch (IOException ex)
+            {
+                errorMessage = "Không đọc được thư mục:" + Environment.NewLine + path +
+                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message;
+                return false;
+            }
+
+            normalizedPath = path;
+            return true;
+        }
+
+        /// <summary>
+        /// Trả về đường dẫn thư mục đang được chọn sau khi đã kiểm tra hợp lệ,
+        /// đồng thời hiển thị lại dạng đã chuẩn hóa trong ô nhập.
+        /// Nếu không hợp lệ, hiển thị thông báo và trả về chuỗi rỗng.
+        /// Bước bắt đầu giám sát ở phần sau sẽ dùng lại phương thức này.
+        /// </summary>
+        private string GetValidatedFolderPath()
+        {
+            string normalizedPath;
+
+            if (!TryValidateFolder(txtFolderPath.Text, out normalizedPath))
+            {
                 txtFolderPath.Focus();
                 txtFolderPath.SelectAll();
                 return string.Empty;
             }
 
-            return path;
+            txtFolderPath.Text = normalizedPath;
+            return normalizedPath;
         }
 
         #endregion
