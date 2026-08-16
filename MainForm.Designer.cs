@@ -36,6 +36,7 @@
             this.lblFolderPath = new System.Windows.Forms.Label();
             this.lblFilter = new System.Windows.Forms.Label();
             this.cboFileFilter = new System.Windows.Forms.ComboBox();
+            this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
             this.tabLog = new System.Windows.Forms.TabPage();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.tabMain.SuspendLayout();
@@ -57,6 +58,7 @@
             // tabMonitor
             //
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
+            this.tabMonitor.Controls.Add(this.chkIncludeSubdirs);
             this.tabMonitor.Controls.Add(this.cboFileFilter);
             this.tabMonitor.Controls.Add(this.lblFilter);
             this.tabMonitor.Controls.Add(this.btnBrowse);
@@ -98,13 +100,25 @@
             this.lblFolderPath.TabIndex = 0;
             this.lblFolderPath.Text = "Thư mục giám sát:";
             //
+            // chkIncludeSubdirs
+            //
+            this.chkIncludeSubdirs.AutoSize = true;
+            this.chkIncludeSubdirs.Checked = true;
+            this.chkIncludeSubdirs.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkIncludeSubdirs.Location = new System.Drawing.Point(19, 62);
+            this.chkIncludeSubdirs.Name = "chkIncludeSubdirs";
+            this.chkIncludeSubdirs.Size = new System.Drawing.Size(151, 21);
+            this.chkIncludeSubdirs.TabIndex = 3;
+            this.chkIncludeSubdirs.Text = "Bao gồm thư mục con";
+            this.chkIncludeSubdirs.UseVisualStyleBackColor = true;
+            //
             // lblFilter
             //
             this.lblFilter.AutoSize = true;
             this.lblFilter.Location = new System.Drawing.Point(260, 63);
             this.lblFilter.Name = "lblFilter";
             this.lblFilter.Size = new System.Drawing.Size(114, 17);
-            this.lblFilter.TabIndex = 3;
+            this.lblFilter.TabIndex = 4;
             this.lblFilter.Text = "Lọc phần mở rộng:";
             //
             // cboFileFilter
@@ -114,7 +128,7 @@
             this.cboFileFilter.Location = new System.Drawing.Point(390, 59);
             this.cboFileFilter.Name = "cboFileFilter";
             this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
-            this.cboFileFilter.TabIndex = 4;
+            this.cboFileFilter.TabIndex = 5;
             //
             // tabLog
             //
@@ -159,6 +173,7 @@
         private System.Windows.Forms.Button btnBrowse;
         private System.Windows.Forms.Label lblFilter;
         private System.Windows.Forms.ComboBox cboFileFilter;
+        private System.Windows.Forms.CheckBox chkIncludeSubdirs;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }
