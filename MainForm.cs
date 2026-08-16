@@ -29,14 +29,14 @@ namespace FileMonitorApps
         /// Danh sách nhật ký đang hiển thị ở tab Nhật ký.
         /// Giữ lại để xuất ra CSV đúng những gì người dùng đang thấy.
         /// </summary>
-        private List<LogEntry> loadedLogEntries = new List<LogEntry>();
+        private List<FileEventLog> loadedLogEntries = new List<FileEventLog>();
 
         /// <summary>
         /// Toàn bộ nhật ký đọc từ tệp, giữ nguyên chưa lọc.
         /// Nhờ vậy khi người dùng gõ tìm kiếm hoặc đổi bộ lọc thì chỉ cần lọc lại
         /// trên bộ nhớ, không phải đọc lại tệp mỗi lần nhấn phím.
         /// </summary>
-        private List<LogEntry> allLogEntries = new List<LogEntry>();
+        private List<FileEventLog> allLogEntries = new List<FileEventLog>();
 
         public MainForm()
         {
@@ -376,7 +376,7 @@ namespace FileMonitorApps
         /// </summary>
         private void ApplyLogFilters()
         {
-            List<LogEntry> result = FilterByDate(allLogEntries);
+            List<FileEventLog> result = FilterByDate(allLogEntries);
             result = FilterByEventType(result);
             result = FilterByKeyword(result);
 
@@ -392,9 +392,9 @@ namespace FileMonitorApps
         /// <summary>
         /// Lọc theo loại sự kiện đang chọn. Mục "Tất cả loại" giữ nguyên danh sách.
         /// </summary>
-        private List<LogEntry> FilterByEventType(List<LogEntry> entries)
+        private List<FileEventLog> FilterByEventType(List<FileEventLog> entries)
         {
-            List<LogEntry> result = new List<LogEntry>();
+            List<FileEventLog> result = new List<FileEventLog>();
 
             if (entries == null)
             {
@@ -410,9 +410,9 @@ namespace FileMonitorApps
                 return result;
             }
 
-            foreach (LogEntry entry in entries)
+            foreach (FileEventLog entry in entries)
             {
-                if (string.Equals(entry.EventType, eventType, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(entry.EventType.ToString(), eventType, StringComparison.OrdinalIgnoreCase))
                 {
                     result.Add(entry);
                 }
@@ -428,9 +428,9 @@ namespace FileMonitorApps
         /// Dùng CurrentCultureIgnoreCase thay vì OrdinalIgnoreCase để so sánh
         /// chữ hoa/chữ thường đúng với tiếng Việt có dấu.
         /// </remarks>
-        private List<LogEntry> FilterByKeyword(List<LogEntry> entries)
+        private List<FileEventLog> FilterByKeyword(List<FileEventLog> entries)
         {
-            List<LogEntry> result = new List<LogEntry>();
+            List<FileEventLog> result = new List<FileEventLog>();
 
             if (entries == null)
             {
@@ -445,7 +445,7 @@ namespace FileMonitorApps
                 return result;
             }
 
-            foreach (LogEntry entry in entries)
+            foreach (FileEventLog entry in entries)
             {
                 if (Contains(entry.FileName, keyword) || Contains(entry.FullPath, keyword))
                 {
@@ -501,9 +501,9 @@ namespace FileMonitorApps
         /// Ngày kết thúc được lấy tới hết ngày (23:59:59) chứ không phải 00:00:00,
         /// nếu không thì chọn "đến hôm nay" sẽ bỏ sót toàn bộ sự kiện của chính hôm nay.
         /// </remarks>
-        private List<LogEntry> FilterByDate(List<LogEntry> entries)
+        private List<FileEventLog> FilterByDate(List<FileEventLog> entries)
         {
-            List<LogEntry> result = new List<LogEntry>();
+            List<FileEventLog> result = new List<FileEventLog>();
 
             if (entries == null)
             {
@@ -513,7 +513,7 @@ namespace FileMonitorApps
             DateTime from = dtpFrom.Value.Date;
             DateTime to = dtpTo.Value.Date.AddDays(1).AddTicks(-1);
 
-            foreach (LogEntry entry in entries)
+            foreach (FileEventLog entry in entries)
             {
                 if (entry.Time >= from && entry.Time <= to)
                 {
@@ -554,7 +554,7 @@ namespace FileMonitorApps
         /// <summary>
         /// Đổ danh sách nhật ký lên bảng dgvLogHistory.
         /// </summary>
-        private void ShowLogEntries(List<LogEntry> entries)
+        private void ShowLogEntries(List<FileEventLog> entries)
         {
             dgvLogHistory.Rows.Clear();
 
@@ -567,11 +567,11 @@ namespace FileMonitorApps
             dgvLogHistory.SuspendLayout();
             try
             {
-                foreach (LogEntry entry in entries)
+                foreach (FileEventLog entry in entries)
                 {
                     dgvLogHistory.Rows.Add(
                         entry.Time.ToString(DisplayTimeFormat),
-                        entry.EventType,
+                        entry.EventType.ToString(),
                         entry.FileName,
                         entry.FullPath);
                 }
