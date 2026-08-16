@@ -20,6 +20,12 @@ namespace FileMonitorApps
         private FileSystemWatcher watcher;
 
         /// <summary>
+        /// Đang trong phiên giám sát hay không. Giữ thành một trường riêng để
+        /// mọi nơi cần bật/tắt nút đều đọc từ cùng một nguồn trạng thái.
+        /// </summary>
+        private bool isMonitoring;
+
+        /// <summary>
         /// Danh sách nhật ký đang hiển thị ở tab Nhật ký.
         /// Giữ lại để xuất ra CSV đúng những gì người dùng đang thấy.
         /// </summary>
@@ -273,13 +279,9 @@ namespace FileMonitorApps
         /// </summary>
         private void btnExportLog_Click(object sender, EventArgs e)
         {
+            // Nút đã bị làm mờ khi không có dữ liệu, đây chỉ là chốt chặn phòng xa.
             if (loadedLogEntries.Count == 0)
             {
-                MessageBox.Show(this,
-                    "Chưa có dữ liệu để xuất. Hãy bấm \"Tải log\" trước.",
-                    "Không có dữ liệu",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
                 return;
             }
 
@@ -384,6 +386,7 @@ namespace FileMonitorApps
 
             loadedLogEntries = result;
             ShowLogEntries(result);
+            UpdateButtonStates();
         }
 
         /// <summary>
@@ -728,10 +731,9 @@ namespace FileMonitorApps
         /// Cập nhật giao diện theo trạng thái đang giám sát hay đang nghỉ.
         /// </summary>
         /// <param name="isMonitoring">true khi bộ theo dõi đang chạy.</param>
-        private void SetMonitoringState(bool isMonitoring)
+        private void SetMonitoringState(bool monitoring)
         {
-            btnStart.Enabled = !isMonitoring;
-            btnStop.Enabled = isMonitoring;
+            isMonitoring = monitoring;
 
             // Khóa phần cấu hình trong lúc đang chạy, nếu không cấu hình hiển thị
             // sẽ không còn khớp với cấu hình mà watcher đang thực sự dùng.
@@ -750,6 +752,38 @@ namespace FileMonitorApps
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
             }
+
+            UpdateButtonStates();
+        }
+
+        /// <summary>
+        /// Bật/tắt các nút theo dữ liệu và trạng thái hiện có.
+        /// Gom về một chỗ để không có nút nào bị bỏ sót khi trạng thái thay đổi.
+        /// </summary>
+        /// <remarks>
+        /// Nguyên tắc: nút nào không dùng được thì làm mờ, thay vì để người dùng
+        /// bấm rồi mới hiện hộp thoại báo không làm được.
+        /// </remarks>
+        private void UpdateButtonStates()
+        {
+            // Chỉ bắt đầu được khi đang rảnh và đã có đường dẫn.
+            btnStart.Enabled = !isMonitoring && txtFolderPath.Text.Trim().Length > 0;
+            btnStop.Enabled = isMonitoring;
+
+            // Chỉ xuất được thứ đang hiển thị trên bảng.
+            btnExportLog.Enabled = loadedLogEntries.Count > 0;
+
+            // Buộc phải bấm "Tải log" trước khi xóa, để người dùng nhìn thấy
+            // mình sắp xóa cái gì. Xóa nhật ký là thao tác không hoàn tác được.
+            btnClearLog.Enabled = allLogEntries.Count > 0;
+        }
+
+        /// <summary>
+        /// Gõ hoặc xóa đường dẫn thì cập nhật lại nút "Bắt đầu giám sát" ngay.
+        /// </summary>
+        private void txtFolderPath_TextChanged(object sender, EventArgs e)
+        {
+            UpdateButtonStates();
         }
 
         /// <summary>

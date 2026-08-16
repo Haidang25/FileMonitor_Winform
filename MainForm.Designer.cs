@@ -123,6 +123,7 @@
             this.txtFolderPath.Name = "txtFolderPath";
             this.txtFolderPath.Size = new System.Drawing.Size(600, 23);
             this.txtFolderPath.TabIndex = 1;
+            this.txtFolderPath.TextChanged += new System.EventHandler(this.txtFolderPath_TextChanged);
             //
             // lblFolderPath
             //
