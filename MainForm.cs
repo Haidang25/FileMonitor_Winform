@@ -357,14 +357,15 @@ namespace FileMonitorApps
         private void LoadEventTypeFilters()
         {
             cboEventTypeFilter.Items.Clear();
-            cboEventTypeFilter.Items.AddRange(new object[]
+            cboEventTypeFilter.Items.Add(new FilterItem("Tất cả loại", string.Empty));
+
+            // Dựng danh sách từ chính kiểu liệt kê: thêm một loại sự kiện mới
+            // chỉ cần khai báo trong FileEventType, giao diện tự có thêm mục.
+            foreach (FileEventType eventType in FileEventTypeHelper.GetAll())
             {
-                new FilterItem("Tất cả loại",         string.Empty),
-                new FilterItem("Created — Tạo mới",   "Created"),
-                new FilterItem("Changed — Sửa đổi",   "Changed"),
-                new FilterItem("Deleted — Xóa",       "Deleted"),
-                new FilterItem("Renamed — Đổi tên",   "Renamed")
-            });
+                cboEventTypeFilter.Items.Add(
+                    new FilterItem(FileEventTypeHelper.GetFullLabel(eventType), eventType.ToString()));
+            }
 
             cboEventTypeFilter.SelectedIndex = 0;
         }

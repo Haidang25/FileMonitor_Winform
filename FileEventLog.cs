@@ -5,26 +5,6 @@ using System.IO;
 namespace FileMonitorApps
 {
     /// <summary>
-    /// Các loại thay đổi mà chương trình ghi nhận.
-    /// Dùng kiểu liệt kê thay vì chuỗi để trình biên dịch bắt lỗi gõ sai ngay lúc dịch,
-    /// thay vì để sai sót lọt tới lúc chạy.
-    /// </summary>
-    internal enum FileEventType
-    {
-        /// <summary>Tệp hoặc thư mục được tạo mới.</summary>
-        Created,
-
-        /// <summary>Nội dung tệp bị sửa đổi.</summary>
-        Changed,
-
-        /// <summary>Tệp hoặc thư mục bị xóa.</summary>
-        Deleted,
-
-        /// <summary>Tệp hoặc thư mục bị đổi tên.</summary>
-        Renamed
-    }
-
-    /// <summary>
     /// Một bản ghi nhật ký: mô tả trọn vẹn một thay đổi đã được ghi nhận.
     /// </summary>
     /// <remarks>
