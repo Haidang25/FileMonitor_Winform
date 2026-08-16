@@ -26,6 +26,16 @@ namespace FileMonitorApps
         private bool isMonitoring;
 
         /// <summary>
+        /// Kích thước bộ đệm khi chỉ theo dõi một thư mục (16 KB).
+        /// </summary>
+        private const int BufferSizeSingleFolder = 16 * 1024;
+
+        /// <summary>
+        /// Kích thước bộ đệm khi theo dõi cả cây thư mục con (64 KB - mức tối đa).
+        /// </summary>
+        private const int BufferSizeRecursive = 64 * 1024;
+
+        /// <summary>
         /// Danh sách nhật ký đang hiển thị ở tab Nhật ký.
         /// Giữ lại để xuất ra CSV đúng những gì người dùng đang thấy.
         /// </summary>
@@ -598,6 +608,11 @@ namespace FileMonitorApps
                 return;
             }
 
+            if (!ConfirmHighVolumeScope(folderPath))
+            {
+                return;
+            }
+
             try
             {
                 StartWatching(folderPath);
@@ -628,6 +643,64 @@ namespace FileMonitorApps
         }
 
         /// <summary>
+        /// Hỏi lại người dùng khi phạm vi theo dõi quá rộng.
+        /// </summary>
+        /// <returns>true nếu được phép tiếp tục.</returns>
+        private bool ConfirmHighVolumeScope(string folderPath)
+        {
+            if (!chkIncludeSubdirs.Checked || !IsDriveRoot(folderPath))
+            {
+                return true;
+            }
+
+            DialogResult answer = MessageBox.Show(this,
+                "Bạn đang chọn thư mục gốc của ổ đĩa kèm toàn bộ thư mục con:" +
+                Environment.NewLine + folderPath + Environment.NewLine +
+                Environment.NewLine +
+                "Phạm vi này sinh ra rất nhiều sự kiện (tệp tạm của hệ điều hành, bộ nhớ đệm " +
+                "của trình duyệt, tiến trình đồng bộ ngầm...) và dễ làm tràn bộ đệm, " +
+                "khiến một số thay đổi bị bỏ sót." + Environment.NewLine +
+                Environment.NewLine + "Vẫn tiếp tục?",
+                "Phạm vi theo dõi quá rộng",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            return answer == DialogResult.Yes;
+        }
+
+        /// <summary>
+        /// Kiểm tra một đường dẫn có phải thư mục gốc của ổ đĩa hay không (ví dụ C:\).
+        /// Hàm tĩnh, không đụng tới giao diện để kiểm thử được độc lập.
+        /// </summary>
+        private static bool IsDriveRoot(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                string root = Path.GetPathRoot(path);
+                if (string.IsNullOrEmpty(root))
+                {
+                    return false;
+                }
+
+                string full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
+                return string.Equals(full, root.TrimEnd(Path.DirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                // Đường dẫn không hợp lệ thì coi như không phải thư mục gốc;
+                // phần kiểm tra đường dẫn đã được làm ở CheckFolder trước đó.
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Tạo và khởi động FileSystemWatcher theo cấu hình đang chọn trên giao diện.
         /// </summary>
         /// <param name="folderPath">Thư mục cần theo dõi, đã được kiểm tra hợp lệ.</param>
@@ -639,19 +712,27 @@ namespace FileMonitorApps
             watcher = new FileSystemWatcher();
             watcher.Path = folderPath;
             watcher.Filter = GetSelectedFilter();
+            // Theo dõi cả thư mục con hay chỉ thư mục được chọn.
+            // Bật tùy chọn này làm số sự kiện tăng theo cấp số nhân với độ sâu cây thư mục.
             watcher.IncludeSubdirectories = chkIncludeSubdirs.Checked;
 
             // NotifyFilter quyết định thay đổi nào được coi là đáng báo.
             // Chỉ đăng ký những loại cần thiết để giảm bớt sự kiện nhiễu.
+            // Đây là cách giảm tải rẻ nhất, nên làm trước khi nghĩ tới việc nới bộ đệm.
             watcher.NotifyFilter = NotifyFilters.FileName
                                  | NotifyFilters.DirectoryName
                                  | NotifyFilters.LastWrite
                                  | NotifyFilters.Size;
 
             // Hệ điều hành lưu tạm các thay đổi vào một bộ đệm trước khi báo cho chương trình.
-            // Khi thư mục thay đổi dồn dập, bộ đệm mặc định (8 KB) có thể bị tràn và
-            // một số sự kiện sẽ bị mất. Đặt lên mức tối đa 64 KB để hạn chế tình huống đó.
-            watcher.InternalBufferSize = 65536;
+            // Khi thư mục thay đổi dồn dập, bộ đệm mặc định (8 KB) có thể bị tràn; khi đó
+            // sự kiện Error được phát và MỘT SỐ THAY ĐỔI BỊ MẤT HẲN, không cách nào lấy lại.
+            //
+            // Bộ đệm nằm trong vùng nhớ non-paged của hệ điều hành nên đặt càng lớn càng tốn,
+            // vì vậy chỉ nới lên mức tối đa khi thực sự cần: lúc theo dõi cả cây thư mục con.
+            watcher.InternalBufferSize = watcher.IncludeSubdirectories
+                ? BufferSizeRecursive
+                : BufferSizeSingleFolder;
 
             // Sự kiện Error báo khi bản thân việc theo dõi gặp sự cố,
             // ví dụ tràn bộ đệm hoặc thư mục đang theo dõi bị xóa.

@@ -28,51 +28,50 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.Windows.Forms.DataGridViewCellStyle alternatingRowStyle = new System.Windows.Forms.DataGridViewCellStyle();
-            this.components = new System.ComponentModel.Container();
+            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             this.tabMain = new System.Windows.Forms.TabControl();
             this.tabMonitor = new System.Windows.Forms.TabPage();
-            this.btnBrowse = new System.Windows.Forms.Button();
-            this.txtFolderPath = new System.Windows.Forms.TextBox();
-            this.lblFolderPath = new System.Windows.Forms.Label();
-            this.lblFilter = new System.Windows.Forms.Label();
-            this.cboFileFilter = new System.Windows.Forms.ComboBox();
-            this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
-            this.btnStart = new System.Windows.Forms.Button();
-            this.btnStop = new System.Windows.Forms.Button();
             this.lblStatus = new System.Windows.Forms.Label();
+            this.btnStop = new System.Windows.Forms.Button();
+            this.btnStart = new System.Windows.Forms.Button();
+            this.lblEventCount = new System.Windows.Forms.Label();
             this.dgvEvents = new System.Windows.Forms.DataGridView();
             this.colTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colEventType = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.lblEventCount = new System.Windows.Forms.Label();
-            this.btnLoadLog = new System.Windows.Forms.Button();
-            this.btnExportLog = new System.Windows.Forms.Button();
-            this.btnClearLog = new System.Windows.Forms.Button();
+            this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
+            this.cboFileFilter = new System.Windows.Forms.ComboBox();
+            this.lblFilter = new System.Windows.Forms.Label();
+            this.btnBrowse = new System.Windows.Forms.Button();
+            this.txtFolderPath = new System.Windows.Forms.TextBox();
+            this.lblFolderPath = new System.Windows.Forms.Label();
+            this.tabLog = new System.Windows.Forms.TabPage();
             this.dgvLogHistory = new System.Windows.Forms.DataGridView();
             this.colLogTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogType = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
-            this.txtSearch = new System.Windows.Forms.TextBox();
             this.cboEventTypeFilter = new System.Windows.Forms.ComboBox();
-            this.lblFrom = new System.Windows.Forms.Label();
-            this.dtpFrom = new System.Windows.Forms.DateTimePicker();
-            this.lblTo = new System.Windows.Forms.Label();
+            this.txtSearch = new System.Windows.Forms.TextBox();
             this.dtpTo = new System.Windows.Forms.DateTimePicker();
-            this.tabLog = new System.Windows.Forms.TabPage();
+            this.lblTo = new System.Windows.Forms.Label();
+            this.dtpFrom = new System.Windows.Forms.DateTimePicker();
+            this.lblFrom = new System.Windows.Forms.Label();
+            this.btnClearLog = new System.Windows.Forms.Button();
+            this.btnExportLog = new System.Windows.Forms.Button();
+            this.btnLoadLog = new System.Windows.Forms.Button();
+            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
-            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).BeginInit();
-            this.tabLog.SuspendLayout();
             this.tabMain.SuspendLayout();
             this.tabMonitor.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
+            this.tabLog.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).BeginInit();
             this.SuspendLayout();
-            //
+            // 
             // tabMain
-            //
+            // 
             this.tabMain.Controls.Add(this.tabMonitor);
             this.tabMain.Controls.Add(this.tabLog);
             this.tabMain.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -82,9 +81,9 @@
             this.tabMain.SelectedIndex = 0;
             this.tabMain.Size = new System.Drawing.Size(884, 561);
             this.tabMain.TabIndex = 0;
-            //
+            // 
             // tabMonitor
-            //
+            // 
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
             this.tabMonitor.Controls.Add(this.lblStatus);
             this.tabMonitor.Controls.Add(this.btnStop);
@@ -97,75 +96,37 @@
             this.tabMonitor.Controls.Add(this.btnBrowse);
             this.tabMonitor.Controls.Add(this.txtFolderPath);
             this.tabMonitor.Controls.Add(this.lblFolderPath);
-            this.tabMonitor.Location = new System.Drawing.Point(4, 26);
+            this.tabMonitor.Location = new System.Drawing.Point(4, 31);
             this.tabMonitor.Name = "tabMonitor";
             this.tabMonitor.Padding = new System.Windows.Forms.Padding(3);
-            this.tabMonitor.Size = new System.Drawing.Size(876, 531);
+            this.tabMonitor.Size = new System.Drawing.Size(876, 526);
             this.tabMonitor.TabIndex = 0;
             this.tabMonitor.Text = "Giám sát";
-            //
-            // btnBrowse
-            //
-            this.btnBrowse.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowse.Location = new System.Drawing.Point(752, 17);
-            this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(110, 27);
-            this.btnBrowse.TabIndex = 2;
-            this.btnBrowse.Text = "Chọn thư mục";
-            this.btnBrowse.UseVisualStyleBackColor = true;
-            this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
-            //
-            // txtFolderPath
-            //
-            this.txtFolderPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtFolderPath.Location = new System.Drawing.Point(140, 19);
-            this.txtFolderPath.Name = "txtFolderPath";
-            this.txtFolderPath.Size = new System.Drawing.Size(600, 23);
-            this.txtFolderPath.TabIndex = 1;
-            this.txtFolderPath.TextChanged += new System.EventHandler(this.txtFolderPath_TextChanged);
-            //
-            // lblFolderPath
-            //
-            this.lblFolderPath.AutoSize = true;
-            this.lblFolderPath.Location = new System.Drawing.Point(16, 22);
-            this.lblFolderPath.Name = "lblFolderPath";
-            this.lblFolderPath.Size = new System.Drawing.Size(112, 17);
-            this.lblFolderPath.TabIndex = 0;
-            this.lblFolderPath.Text = "Thư mục giám sát:";
-            //
-            // chkIncludeSubdirs
-            //
-            this.chkIncludeSubdirs.AutoSize = true;
-            this.chkIncludeSubdirs.Checked = true;
-            this.chkIncludeSubdirs.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkIncludeSubdirs.Location = new System.Drawing.Point(19, 62);
-            this.chkIncludeSubdirs.Name = "chkIncludeSubdirs";
-            this.chkIncludeSubdirs.Size = new System.Drawing.Size(151, 21);
-            this.chkIncludeSubdirs.TabIndex = 3;
-            this.chkIncludeSubdirs.Text = "Bao gồm thư mục con";
-            this.chkIncludeSubdirs.UseVisualStyleBackColor = true;
-            //
-            // lblFilter
-            //
-            this.lblFilter.AutoSize = true;
-            this.lblFilter.Location = new System.Drawing.Point(260, 63);
-            this.lblFilter.Name = "lblFilter";
-            this.lblFilter.Size = new System.Drawing.Size(114, 17);
-            this.lblFilter.TabIndex = 4;
-            this.lblFilter.Text = "Lọc phần mở rộng:";
-            //
-            // cboFileFilter
-            //
-            this.cboFileFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cboFileFilter.FormattingEnabled = true;
-            this.cboFileFilter.Location = new System.Drawing.Point(390, 59);
-            this.cboFileFilter.Name = "cboFileFilter";
-            this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
-            this.cboFileFilter.TabIndex = 5;
-            //
+            // 
+            // lblStatus
+            // 
+            this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblStatus.AutoEllipsis = true;
+            this.lblStatus.Location = new System.Drawing.Point(657, 105);
+            this.lblStatus.Name = "lblStatus";
+            this.lblStatus.Size = new System.Drawing.Size(200, 24);
+            this.lblStatus.TabIndex = 8;
+            this.lblStatus.Text = "● Chưa giám sát";
+            this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            // 
+            // btnStop
+            // 
+            this.btnStop.Enabled = false;
+            this.btnStop.Location = new System.Drawing.Point(205, 100);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.Size = new System.Drawing.Size(170, 34);
+            this.btnStop.TabIndex = 7;
+            this.btnStop.Text = "Dừng giám sát";
+            this.btnStop.UseVisualStyleBackColor = true;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            // 
             // btnStart
-            //
+            // 
             this.btnStart.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
             this.btnStart.FlatAppearance.BorderSize = 0;
             this.btnStart.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -177,41 +138,28 @@
             this.btnStart.Text = "Bắt đầu giám sát";
             this.btnStart.UseVisualStyleBackColor = false;
             this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
-            //
-            // btnStop
-            //
-            this.btnStop.Enabled = false;
-            this.btnStop.Location = new System.Drawing.Point(205, 100);
-            this.btnStop.Name = "btnStop";
-            this.btnStop.Size = new System.Drawing.Size(170, 34);
-            this.btnStop.TabIndex = 7;
-            this.btnStop.Text = "Dừng giám sát";
-            this.btnStop.UseVisualStyleBackColor = true;
-            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
-            //
-            // lblStatus
-            //
-            this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.lblStatus.AutoEllipsis = true;
-            this.lblStatus.Location = new System.Drawing.Point(657, 105);
-            this.lblStatus.Name = "lblStatus";
-            this.lblStatus.Size = new System.Drawing.Size(200, 24);
-            this.lblStatus.TabIndex = 8;
-            this.lblStatus.Text = "● Chưa giám sát";
-            this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            //
+            // 
+            // lblEventCount
+            // 
+            this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.lblEventCount.AutoSize = true;
+            this.lblEventCount.Location = new System.Drawing.Point(19, 487);
+            this.lblEventCount.Name = "lblEventCount";
+            this.lblEventCount.Size = new System.Drawing.Size(127, 20);
+            this.lblEventCount.TabIndex = 10;
+            this.lblEventCount.Text = "Tổng số sự kiện: 0";
+            // 
             // dgvEvents
-            //
+            // 
             this.dgvEvents.AllowUserToAddRows = false;
             this.dgvEvents.AllowUserToDeleteRows = false;
             this.dgvEvents.AllowUserToResizeRows = false;
-            this.dgvEvents.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
+            dataGridViewCellStyle1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(247)))), ((int)(((byte)(247)))), ((int)(((byte)(247)))));
+            this.dgvEvents.AlternatingRowsDefaultCellStyle = dataGridViewCellStyle1;
+            this.dgvEvents.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            alternatingRowStyle.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(247)))), ((int)(((byte)(247)))), ((int)(((byte)(247)))));
-            this.dgvEvents.AlternatingRowsDefaultCellStyle = alternatingRowStyle;
             this.dgvEvents.BackgroundColor = System.Drawing.SystemColors.Window;
-            this.dgvEvents.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.dgvEvents.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvEvents.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.colTime,
@@ -219,55 +167,108 @@
             this.colFileName,
             this.colFullPath});
             this.dgvEvents.Location = new System.Drawing.Point(19, 145);
+            this.dgvEvents.MinimumSize = new System.Drawing.Size(400, 120);
             this.dgvEvents.Name = "dgvEvents";
             this.dgvEvents.ReadOnly = true;
-            this.dgvEvents.MinimumSize = new System.Drawing.Size(400, 120);
             this.dgvEvents.RowHeadersVisible = false;
+            this.dgvEvents.RowHeadersWidth = 51;
             this.dgvEvents.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvEvents.Size = new System.Drawing.Size(838, 330);
             this.dgvEvents.TabIndex = 9;
-            //
+            // 
             // colTime
-            //
+            // 
             this.colTime.HeaderText = "Thời gian";
+            this.colTime.MinimumWidth = 6;
             this.colTime.Name = "colTime";
             this.colTime.ReadOnly = true;
-            this.colTime.Width = 100;
-            //
+            // 
             // colEventType
-            //
+            // 
             this.colEventType.HeaderText = "Loại sự kiện";
+            this.colEventType.MinimumWidth = 6;
             this.colEventType.Name = "colEventType";
             this.colEventType.ReadOnly = true;
             this.colEventType.Width = 120;
-            //
+            // 
             // colFileName
-            //
+            // 
             this.colFileName.HeaderText = "Tên tệp";
+            this.colFileName.MinimumWidth = 6;
             this.colFileName.Name = "colFileName";
             this.colFileName.ReadOnly = true;
             this.colFileName.Width = 220;
-            //
+            // 
             // colFullPath
-            //
+            // 
             this.colFullPath.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
             this.colFullPath.HeaderText = "Đường dẫn";
             this.colFullPath.MinimumWidth = 200;
             this.colFullPath.Name = "colFullPath";
             this.colFullPath.ReadOnly = true;
-            //
-            // lblEventCount
-            //
-            this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.lblEventCount.AutoSize = true;
-            this.lblEventCount.Location = new System.Drawing.Point(19, 487);
-            this.lblEventCount.Name = "lblEventCount";
-            this.lblEventCount.Size = new System.Drawing.Size(122, 17);
-            this.lblEventCount.TabIndex = 10;
-            this.lblEventCount.Text = "Tổng số sự kiện: 0";
-            //
+            // 
+            // chkIncludeSubdirs
+            // 
+            this.chkIncludeSubdirs.AutoSize = true;
+            this.chkIncludeSubdirs.Checked = true;
+            this.chkIncludeSubdirs.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkIncludeSubdirs.Location = new System.Drawing.Point(19, 62);
+            this.chkIncludeSubdirs.Name = "chkIncludeSubdirs";
+            this.chkIncludeSubdirs.Size = new System.Drawing.Size(178, 24);
+            this.chkIncludeSubdirs.TabIndex = 3;
+            this.chkIncludeSubdirs.Text = "Bao gồm thư mục con";
+            this.chkIncludeSubdirs.UseVisualStyleBackColor = true;
+            // 
+            // cboFileFilter
+            // 
+            this.cboFileFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboFileFilter.FormattingEnabled = true;
+            this.cboFileFilter.Location = new System.Drawing.Point(390, 59);
+            this.cboFileFilter.Name = "cboFileFilter";
+            this.cboFileFilter.Size = new System.Drawing.Size(230, 28);
+            this.cboFileFilter.TabIndex = 5;
+            // 
+            // lblFilter
+            // 
+            this.lblFilter.AutoSize = true;
+            this.lblFilter.Location = new System.Drawing.Point(260, 63);
+            this.lblFilter.Name = "lblFilter";
+            this.lblFilter.Size = new System.Drawing.Size(133, 20);
+            this.lblFilter.TabIndex = 4;
+            this.lblFilter.Text = "Lọc phần mở rộng:";
+            // 
+            // btnBrowse
+            // 
+            this.btnBrowse.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnBrowse.Location = new System.Drawing.Point(752, 17);
+            this.btnBrowse.Name = "btnBrowse";
+            this.btnBrowse.Size = new System.Drawing.Size(110, 27);
+            this.btnBrowse.TabIndex = 2;
+            this.btnBrowse.Text = "Chọn thư mục";
+            this.btnBrowse.UseVisualStyleBackColor = true;
+            this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
+            // 
+            // txtFolderPath
+            // 
+            this.txtFolderPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.txtFolderPath.Location = new System.Drawing.Point(140, 19);
+            this.txtFolderPath.Name = "txtFolderPath";
+            this.txtFolderPath.Size = new System.Drawing.Size(600, 27);
+            this.txtFolderPath.TabIndex = 1;
+            this.txtFolderPath.TextChanged += new System.EventHandler(this.txtFolderPath_TextChanged);
+            // 
+            // lblFolderPath
+            // 
+            this.lblFolderPath.AutoSize = true;
+            this.lblFolderPath.Location = new System.Drawing.Point(16, 22);
+            this.lblFolderPath.Name = "lblFolderPath";
+            this.lblFolderPath.Size = new System.Drawing.Size(130, 20);
+            this.lblFolderPath.TabIndex = 0;
+            this.lblFolderPath.Text = "Thư mục giám sát:";
+            // 
             // tabLog
-            //
+            // 
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
             this.tabLog.Controls.Add(this.dgvLogHistory);
             this.tabLog.Controls.Add(this.cboEventTypeFilter);
@@ -279,72 +280,150 @@
             this.tabLog.Controls.Add(this.btnClearLog);
             this.tabLog.Controls.Add(this.btnExportLog);
             this.tabLog.Controls.Add(this.btnLoadLog);
-            this.tabLog.Location = new System.Drawing.Point(4, 26);
+            this.tabLog.Location = new System.Drawing.Point(4, 31);
             this.tabLog.Name = "tabLog";
             this.tabLog.Padding = new System.Windows.Forms.Padding(3);
-            this.tabLog.Size = new System.Drawing.Size(876, 531);
+            this.tabLog.Size = new System.Drawing.Size(876, 526);
             this.tabLog.TabIndex = 1;
             this.tabLog.Text = "Nhật ký";
-            //
-            // txtSearch
-            //
-            this.txtSearch.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            // 
+            // dgvLogHistory
+            // 
+            this.dgvLogHistory.AllowUserToAddRows = false;
+            this.dgvLogHistory.AllowUserToDeleteRows = false;
+            this.dgvLogHistory.AllowUserToResizeRows = false;
+            this.dgvLogHistory.AlternatingRowsDefaultCellStyle = dataGridViewCellStyle1;
+            this.dgvLogHistory.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSearch.Location = new System.Drawing.Point(19, 19);
-            this.txtSearch.Name = "txtSearch";
-            this.txtSearch.Size = new System.Drawing.Size(620, 23);
-            this.txtSearch.TabIndex = 10;
-            this.txtSearch.TextChanged += new System.EventHandler(this.txtSearch_TextChanged);
-            //
+            this.dgvLogHistory.BackgroundColor = System.Drawing.SystemColors.Window;
+            this.dgvLogHistory.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvLogHistory.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colLogTime,
+            this.colLogType,
+            this.colLogFileName,
+            this.colLogFullPath});
+            this.dgvLogHistory.Location = new System.Drawing.Point(19, 145);
+            this.dgvLogHistory.MinimumSize = new System.Drawing.Size(400, 120);
+            this.dgvLogHistory.Name = "dgvLogHistory";
+            this.dgvLogHistory.ReadOnly = true;
+            this.dgvLogHistory.RowHeadersVisible = false;
+            this.dgvLogHistory.RowHeadersWidth = 51;
+            this.dgvLogHistory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvLogHistory.Size = new System.Drawing.Size(838, 366);
+            this.dgvLogHistory.TabIndex = 3;
+            // 
+            // colLogTime
+            // 
+            this.colLogTime.HeaderText = "Thời gian";
+            this.colLogTime.MinimumWidth = 6;
+            this.colLogTime.Name = "colLogTime";
+            this.colLogTime.ReadOnly = true;
+            this.colLogTime.Width = 150;
+            // 
+            // colLogType
+            // 
+            this.colLogType.HeaderText = "Loại";
+            this.colLogType.MinimumWidth = 6;
+            this.colLogType.Name = "colLogType";
+            this.colLogType.ReadOnly = true;
+            this.colLogType.Width = 110;
+            // 
+            // colLogFileName
+            // 
+            this.colLogFileName.HeaderText = "Tên tệp";
+            this.colLogFileName.MinimumWidth = 6;
+            this.colLogFileName.Name = "colLogFileName";
+            this.colLogFileName.ReadOnly = true;
+            this.colLogFileName.Width = 200;
+            // 
+            // colLogFullPath
+            // 
+            this.colLogFullPath.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+            this.colLogFullPath.HeaderText = "Đường dẫn";
+            this.colLogFullPath.MinimumWidth = 200;
+            this.colLogFullPath.Name = "colLogFullPath";
+            this.colLogFullPath.ReadOnly = true;
+            // 
             // cboEventTypeFilter
-            //
+            // 
             this.cboEventTypeFilter.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.cboEventTypeFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboEventTypeFilter.FormattingEnabled = true;
             this.cboEventTypeFilter.Location = new System.Drawing.Point(655, 18);
             this.cboEventTypeFilter.Name = "cboEventTypeFilter";
-            this.cboEventTypeFilter.Size = new System.Drawing.Size(202, 25);
+            this.cboEventTypeFilter.Size = new System.Drawing.Size(202, 28);
             this.cboEventTypeFilter.TabIndex = 11;
             this.cboEventTypeFilter.SelectedIndexChanged += new System.EventHandler(this.cboEventTypeFilter_SelectedIndexChanged);
-            //
-            // lblFrom
-            //
-            this.lblFrom.AutoSize = true;
-            this.lblFrom.Location = new System.Drawing.Point(19, 63);
-            this.lblFrom.Name = "lblFrom";
-            this.lblFrom.Size = new System.Drawing.Size(56, 17);
-            this.lblFrom.TabIndex = 20;
-            this.lblFrom.Text = "Từ ngày:";
-            //
-            // dtpFrom
-            //
-            this.dtpFrom.Format = System.Windows.Forms.DateTimePickerFormat.Short;
-            this.dtpFrom.Location = new System.Drawing.Point(85, 59);
-            this.dtpFrom.Name = "dtpFrom";
-            this.dtpFrom.Size = new System.Drawing.Size(150, 25);
-            this.dtpFrom.TabIndex = 21;
-            this.dtpFrom.ValueChanged += new System.EventHandler(this.dtpFrom_ValueChanged);
-            //
-            // lblTo
-            //
-            this.lblTo.AutoSize = true;
-            this.lblTo.Location = new System.Drawing.Point(255, 63);
-            this.lblTo.Name = "lblTo";
-            this.lblTo.Size = new System.Drawing.Size(65, 17);
-            this.lblTo.TabIndex = 22;
-            this.lblTo.Text = "Đến ngày:";
-            //
+            // 
+            // txtSearch
+            // 
+            this.txtSearch.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.txtSearch.Location = new System.Drawing.Point(19, 19);
+            this.txtSearch.Name = "txtSearch";
+            this.txtSearch.Size = new System.Drawing.Size(620, 27);
+            this.txtSearch.TabIndex = 10;
+            this.txtSearch.TextChanged += new System.EventHandler(this.txtSearch_TextChanged);
+            // 
             // dtpTo
-            //
+            // 
             this.dtpTo.Format = System.Windows.Forms.DateTimePickerFormat.Short;
             this.dtpTo.Location = new System.Drawing.Point(330, 59);
             this.dtpTo.Name = "dtpTo";
-            this.dtpTo.Size = new System.Drawing.Size(150, 25);
+            this.dtpTo.Size = new System.Drawing.Size(150, 27);
             this.dtpTo.TabIndex = 23;
             this.dtpTo.ValueChanged += new System.EventHandler(this.dtpTo_ValueChanged);
-            //
+            // 
+            // lblTo
+            // 
+            this.lblTo.AutoSize = true;
+            this.lblTo.Location = new System.Drawing.Point(255, 63);
+            this.lblTo.Name = "lblTo";
+            this.lblTo.Size = new System.Drawing.Size(75, 20);
+            this.lblTo.TabIndex = 22;
+            this.lblTo.Text = "Đến ngày:";
+            // 
+            // dtpFrom
+            // 
+            this.dtpFrom.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            this.dtpFrom.Location = new System.Drawing.Point(85, 59);
+            this.dtpFrom.Name = "dtpFrom";
+            this.dtpFrom.Size = new System.Drawing.Size(150, 27);
+            this.dtpFrom.TabIndex = 21;
+            this.dtpFrom.ValueChanged += new System.EventHandler(this.dtpFrom_ValueChanged);
+            // 
+            // lblFrom
+            // 
+            this.lblFrom.AutoSize = true;
+            this.lblFrom.Location = new System.Drawing.Point(19, 63);
+            this.lblFrom.Name = "lblFrom";
+            this.lblFrom.Size = new System.Drawing.Size(65, 20);
+            this.lblFrom.TabIndex = 20;
+            this.lblFrom.Text = "Từ ngày:";
+            // 
+            // btnClearLog
+            // 
+            this.btnClearLog.Location = new System.Drawing.Point(291, 100);
+            this.btnClearLog.Name = "btnClearLog";
+            this.btnClearLog.Size = new System.Drawing.Size(120, 34);
+            this.btnClearLog.TabIndex = 2;
+            this.btnClearLog.Text = "Xóa log";
+            this.btnClearLog.UseVisualStyleBackColor = true;
+            this.btnClearLog.Click += new System.EventHandler(this.btnClearLog_Click);
+            // 
+            // btnExportLog
+            // 
+            this.btnExportLog.Location = new System.Drawing.Point(155, 100);
+            this.btnExportLog.Name = "btnExportLog";
+            this.btnExportLog.Size = new System.Drawing.Size(120, 34);
+            this.btnExportLog.TabIndex = 1;
+            this.btnExportLog.Text = "Xuất log";
+            this.btnExportLog.UseVisualStyleBackColor = true;
+            this.btnExportLog.Click += new System.EventHandler(this.btnExportLog_Click);
+            // 
             // btnLoadLog
-            //
+            // 
             this.btnLoadLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(120)))), ((int)(((byte)(215)))));
             this.btnLoadLog.FlatAppearance.BorderSize = 0;
             this.btnLoadLog.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
@@ -356,96 +435,21 @@
             this.btnLoadLog.Text = "Tải log";
             this.btnLoadLog.UseVisualStyleBackColor = false;
             this.btnLoadLog.Click += new System.EventHandler(this.btnLoadLog_Click);
-            //
-            // btnExportLog
-            //
-            this.btnExportLog.Location = new System.Drawing.Point(155, 100);
-            this.btnExportLog.Name = "btnExportLog";
-            this.btnExportLog.Size = new System.Drawing.Size(120, 34);
-            this.btnExportLog.TabIndex = 1;
-            this.btnExportLog.Text = "Xuất log";
-            this.btnExportLog.UseVisualStyleBackColor = true;
-            this.btnExportLog.Click += new System.EventHandler(this.btnExportLog_Click);
-            //
-            // btnClearLog
-            //
-            this.btnClearLog.Location = new System.Drawing.Point(291, 100);
-            this.btnClearLog.Name = "btnClearLog";
-            this.btnClearLog.Size = new System.Drawing.Size(120, 34);
-            this.btnClearLog.TabIndex = 2;
-            this.btnClearLog.Text = "Xóa log";
-            this.btnClearLog.UseVisualStyleBackColor = true;
-            this.btnClearLog.Click += new System.EventHandler(this.btnClearLog_Click);
-            //
-            // dgvLogHistory
-            //
-            this.dgvLogHistory.AllowUserToAddRows = false;
-            this.dgvLogHistory.AllowUserToDeleteRows = false;
-            this.dgvLogHistory.AllowUserToResizeRows = false;
-            this.dgvLogHistory.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.dgvLogHistory.AlternatingRowsDefaultCellStyle = alternatingRowStyle;
-            this.dgvLogHistory.BackgroundColor = System.Drawing.SystemColors.Window;
-            this.dgvLogHistory.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.dgvLogHistory.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvLogHistory.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.colLogTime,
-            this.colLogType,
-            this.colLogFileName,
-            this.colLogFullPath});
-            this.dgvLogHistory.Location = new System.Drawing.Point(19, 145);
-            this.dgvLogHistory.Name = "dgvLogHistory";
-            this.dgvLogHistory.ReadOnly = true;
-            this.dgvLogHistory.MinimumSize = new System.Drawing.Size(400, 120);
-            this.dgvLogHistory.RowHeadersVisible = false;
-            this.dgvLogHistory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvLogHistory.Size = new System.Drawing.Size(838, 366);
-            this.dgvLogHistory.TabIndex = 3;
-            //
-            // colLogTime
-            //
-            this.colLogTime.HeaderText = "Thời gian";
-            this.colLogTime.Name = "colLogTime";
-            this.colLogTime.ReadOnly = true;
-            this.colLogTime.Width = 150;
-            //
-            // colLogType
-            //
-            this.colLogType.HeaderText = "Loại";
-            this.colLogType.Name = "colLogType";
-            this.colLogType.ReadOnly = true;
-            this.colLogType.Width = 110;
-            //
-            // colLogFileName
-            //
-            this.colLogFileName.HeaderText = "Tên tệp";
-            this.colLogFileName.Name = "colLogFileName";
-            this.colLogFileName.ReadOnly = true;
-            this.colLogFileName.Width = 200;
-            //
-            // colLogFullPath
-            //
-            this.colLogFullPath.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
-            this.colLogFullPath.HeaderText = "Đường dẫn";
-            this.colLogFullPath.MinimumWidth = 200;
-            this.colLogFullPath.Name = "colLogFullPath";
-            this.colLogFullPath.ReadOnly = true;
-            //
+            // 
             // saveFileDialog
-            //
+            // 
             this.saveFileDialog.DefaultExt = "csv";
             this.saveFileDialog.Filter = "Tệp CSV (*.csv)|*.csv|Tất cả các tệp (*.*)|*.*";
             this.saveFileDialog.Title = "Xuất nhật ký ra tệp CSV";
-            //
+            // 
             // folderBrowserDialog
-            //
+            // 
             this.folderBrowserDialog.Description = "Chọn thư mục cần giám sát thay đổi tệp tin:";
             this.folderBrowserDialog.ShowNewFolderButton = false;
-            //
+            // 
             // MainForm
-            //
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(884, 561);
             this.Controls.Add(this.tabMain);
@@ -456,14 +460,15 @@
             this.Text = "FileMonitor";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             this.Load += new System.EventHandler(this.MainForm_Load);
-            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).EndInit();
-            this.tabLog.ResumeLayout(false);
-            this.tabLog.PerformLayout();
             this.tabMain.ResumeLayout(false);
             this.tabMonitor.ResumeLayout(false);
             this.tabMonitor.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).EndInit();
+            this.tabLog.ResumeLayout(false);
+            this.tabLog.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).EndInit();
             this.ResumeLayout(false);
+
         }
 
         #endregion
