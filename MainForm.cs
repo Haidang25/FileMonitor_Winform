@@ -854,6 +854,7 @@ namespace FileMonitorApps
             }
 
             UpdateEventCount();
+            UpdateButtonStates();
         }
 
         /// <summary>
@@ -986,7 +987,7 @@ namespace FileMonitorApps
             {
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
-                toolTipStatus.SetToolTip(lblStatus, string.Empty);
+                toolTipMain.SetToolTip(lblStatus, string.Empty);
                 return;
             }
 
@@ -995,7 +996,7 @@ namespace FileMonitorApps
                 // Màu cam: vẫn đang chạy nhưng dữ liệu không còn đầy đủ.
                 lblStatus.Text = "● Đang giám sát — bỏ sót " + overflowCount.ToString("N0") + " lần";
                 lblStatus.ForeColor = Color.FromArgb(200, 100, 0);
-                toolTipStatus.SetToolTip(lblStatus,
+                toolTipMain.SetToolTip(lblStatus,
                     "Bộ đệm của hệ điều hành đã bị tràn " + overflowCount.ToString("N0") + " lần." +
                     Environment.NewLine +
                     "Một số thay đổi trong những khoảng đó không được ghi nhận." +
@@ -1007,7 +1008,7 @@ namespace FileMonitorApps
 
             lblStatus.Text = "● Đang giám sát";
             lblStatus.ForeColor = Color.FromArgb(16, 124, 16);
-            toolTipStatus.SetToolTip(lblStatus, "Đang theo dõi bình thường, chưa bỏ sót thay đổi nào.");
+            toolTipMain.SetToolTip(lblStatus, "Đang theo dõi bình thường, chưa bỏ sót thay đổi nào.");
         }
 
         /// <summary>
@@ -1023,6 +1024,9 @@ namespace FileMonitorApps
             // Chỉ bắt đầu được khi đang rảnh và đã có đường dẫn.
             btnStart.Enabled = !isMonitoring && txtFolderPath.Text.Trim().Length > 0;
             btnStop.Enabled = isMonitoring;
+
+            // Chỉ xóa được khi trên bảng đang có gì đó.
+            btnClearView.Enabled = dgvEvents.Rows.Count > 0;
 
             // Chỉ xuất được thứ đang hiển thị trên bảng.
             btnExportLog.Enabled = loadedLogEntries.Count > 0;
@@ -1057,9 +1061,45 @@ namespace FileMonitorApps
         /// <summary>
         /// Cập nhật nhãn tổng số sự kiện của phiên giám sát hiện tại.
         /// </summary>
+        /// <remarks>
+        /// Khi số dòng đang hiển thị khác tổng số sự kiện, ghi thêm cả hai con số.
+        /// Chênh lệch xảy ra khi người dùng bấm "Xóa danh sách", hoặc khi bảng đã đầy
+        /// và phần cũ nhất bị cắt bớt. Không ghi rõ thì nhãn trông như đếm sai.
+        /// </remarks>
         private void UpdateEventCount()
         {
-            lblEventCount.Text = "Tổng số sự kiện: " + sessionEventCount.ToString("N0");
+            string text = "Tổng số sự kiện: " + sessionEventCount.ToString("N0");
+
+            if (dgvEvents.Rows.Count != sessionEventCount)
+            {
+                text += "   —   đang hiển thị: " + dgvEvents.Rows.Count.ToString("N0");
+            }
+
+            lblEventCount.Text = text;
+        }
+
+        /// <summary>
+        /// Bấm "Xóa danh sách": dọn bảng sự kiện trên màn hình.
+        /// </summary>
+        /// <remarks>
+        /// KHÔNG đụng tới tệp nhật ký — đây là điểm khác biệt so với nút "Xóa log"
+        /// ở tab Nhật ký. Vì không mất dữ liệu nên cũng không cần hỏi xác nhận.
+        /// Bộ đếm tổng số sự kiện được giữ nguyên: đã phát hiện bao nhiêu thay đổi
+        /// là sự thật của phiên giám sát, xóa màn hình không làm điều đó thay đổi.
+        /// </remarks>
+        private void btnClearView_Click(object sender, EventArgs e)
+        {
+            dgvEvents.Rows.Clear();
+
+            // Dọn cả những bản ghi đang chờ, nếu không chúng sẽ hiện ra ngay sau khi xóa.
+            // Chúng đã được ghi vào tệp nhật ký nên không mất dữ liệu.
+            lock (pendingLock)
+            {
+                pendingEvents.Clear();
+            }
+
+            UpdateEventCount();
+            UpdateButtonStates();
         }
 
         #endregion

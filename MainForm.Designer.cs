@@ -40,6 +40,7 @@
             this.chkIncludeSubdirs = new System.Windows.Forms.CheckBox();
             this.btnStart = new System.Windows.Forms.Button();
             this.btnStop = new System.Windows.Forms.Button();
+            this.btnClearView = new System.Windows.Forms.Button();
             this.lblStatus = new System.Windows.Forms.Label();
             this.dgvEvents = new System.Windows.Forms.DataGridView();
             this.colTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -56,7 +57,7 @@
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
-            this.toolTipStatus = new System.Windows.Forms.ToolTip(this.components);
+            this.toolTipMain = new System.Windows.Forms.ToolTip(this.components);
             this.txtSearch = new System.Windows.Forms.TextBox();
             this.cboEventTypeFilter = new System.Windows.Forms.ComboBox();
             this.lblFrom = new System.Windows.Forms.Label();
@@ -88,6 +89,7 @@
             //
             this.tabMonitor.BackColor = System.Drawing.SystemColors.Control;
             this.tabMonitor.Controls.Add(this.lblStatus);
+            this.tabMonitor.Controls.Add(this.btnClearView);
             this.tabMonitor.Controls.Add(this.btnStop);
             this.tabMonitor.Controls.Add(this.btnStart);
             this.tabMonitor.Controls.Add(this.lblEventCount);
@@ -189,6 +191,20 @@
             this.btnStop.Text = "Dừng giám sát";
             this.btnStop.UseVisualStyleBackColor = true;
             this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            //
+            // btnClearView
+            //
+            this.btnClearView.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnClearView.Enabled = false;
+            this.btnClearView.Location = new System.Drawing.Point(687, 481);
+            this.btnClearView.Name = "btnClearView";
+            this.btnClearView.Size = new System.Drawing.Size(170, 30);
+            this.btnClearView.TabIndex = 11;
+            this.btnClearView.Text = "Xóa danh sách";
+            this.btnClearView.UseVisualStyleBackColor = true;
+            this.toolTipMain.SetToolTip(this.btnClearView, "Chỉ xóa danh sách đang hiển thị." +
+                " Nhật ký đã ghi trong tệp vẫn còn nguyên, xem lại ở tab Nhật ký.");
+            this.btnClearView.Click += new System.EventHandler(this.btnClearView_Click);
             //
             // lblStatus
             //
@@ -480,6 +496,7 @@
         private System.Windows.Forms.CheckBox chkIncludeSubdirs;
         private System.Windows.Forms.Button btnStart;
         private System.Windows.Forms.Button btnStop;
+        private System.Windows.Forms.Button btnClearView;
         private System.Windows.Forms.Label lblStatus;
         private System.Windows.Forms.DataGridView dgvEvents;
         private System.Windows.Forms.DataGridViewTextBoxColumn colTime;
@@ -496,7 +513,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
         private System.Windows.Forms.SaveFileDialog saveFileDialog;
-        private System.Windows.Forms.ToolTip toolTipStatus;
+        private System.Windows.Forms.ToolTip toolTipMain;
         private System.Windows.Forms.TextBox txtSearch;
         private System.Windows.Forms.ComboBox cboEventTypeFilter;
         private System.Windows.Forms.Label lblFrom;
