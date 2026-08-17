@@ -29,6 +29,12 @@ namespace FileMonitorApps
         private int sessionEventCount;
 
         /// <summary>
+        /// Số lần tràn bộ đệm trong phiên hiện tại. Mỗi lần tương ứng với một khoảng
+        /// thời gian mà nhật ký bị thiếu dữ liệu.
+        /// </summary>
+        private int overflowCount;
+
+        /// <summary>
         /// Số dòng tối đa giữ lại trên bảng sự kiện. Toàn bộ vẫn nằm trong tệp nhật ký.
         /// Không giới hạn thì một thư mục hoạt động mạnh sẽ làm bảng phình ra vô hạn.
         /// </summary>
@@ -625,6 +631,7 @@ namespace FileMonitorApps
             {
                 dgvEvents.Rows.Clear();
                 sessionEventCount = 0;
+                overflowCount = 0;
                 UpdateEventCount();
 
                 monitorService.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
@@ -815,8 +822,14 @@ namespace FileMonitorApps
                 return;
             }
 
-            // Dừng ở đây, tức là sau khi đã về luồng giao diện, chứ không dừng ngay
-            // bên trong lời gọi lại của watcher.
+            if (e != null && e.IsBufferOverflow)
+            {
+                HandleBufferOverflow();
+                return;
+            }
+
+            // Sự cố khiến bộ theo dõi không chạy được nữa: dừng ở đây, tức là sau khi đã
+            // về luồng giao diện, chứ không dừng ngay bên trong lời gọi lại của watcher.
             monitorService.Stop();
             SetMonitoringState(false);
 
@@ -825,12 +838,32 @@ namespace FileMonitorApps
             MessageBox.Show(this,
                 "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
                 Environment.NewLine +
-                "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa hoặc bị ngắt kết nối, " +
-                "hoặc có quá nhiều thay đổi cùng lúc làm tràn bộ đệm." + Environment.NewLine +
+                "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa, bị đổi tên, " +
+                "hoặc nằm trên ổ đĩa mạng đã ngắt kết nối." + Environment.NewLine +
                 Environment.NewLine + "Chi tiết: " + (error != null ? error.Message : "không rõ"),
                 "Lỗi giám sát",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Xử lý tình huống tràn bộ đệm: vẫn tiếp tục giám sát, chỉ báo cho người dùng biết
+        /// rằng nhật ký đã bị thiếu một khoảng.
+        /// </summary>
+        /// <remarks>
+        /// Cố tình KHÔNG hiện hộp thoại ở đây, vì hai lẽ:
+        /// - Tràn bộ đệm thường xảy ra thành chuỗi khi thư mục đang bị thay đổi dồn dập;
+        ///   mỗi lần một hộp thoại thì người dùng không thể làm gì khác.
+        /// - Hộp thoại là loại chặn (modal), trong lúc nó mở thì các sự kiện tiếp theo
+        ///   chỉ xếp hàng chờ, càng làm tình hình tệ hơn.
+        ///
+        /// Thay vào đó dùng nhãn trạng thái đổi màu kèm số lần bỏ sót, và chú thích
+        /// giải thích nguyên nhân khi người dùng đưa chuột vào.
+        /// </remarks>
+        private void HandleBufferOverflow()
+        {
+            overflowCount++;
+            UpdateStatusLabel();
         }
 
         /// <summary>
@@ -848,18 +881,41 @@ namespace FileMonitorApps
             chkIncludeSubdirs.Enabled = !isMonitoring;
             cboFileFilter.Enabled = !isMonitoring;
 
-            if (isMonitoring)
-            {
-                lblStatus.Text = "● Đang giám sát";
-                lblStatus.ForeColor = Color.FromArgb(16, 124, 16);
-            }
-            else
+            UpdateStatusLabel();
+            UpdateButtonStates();
+        }
+
+        /// <summary>
+        /// Cập nhật nhãn trạng thái theo tình hình hiện tại, kể cả khi đã có lần bỏ sót.
+        /// </summary>
+        private void UpdateStatusLabel()
+        {
+            if (!isMonitoring)
             {
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
+                toolTipStatus.SetToolTip(lblStatus, string.Empty);
+                return;
             }
 
-            UpdateButtonStates();
+            if (overflowCount > 0)
+            {
+                // Màu cam: vẫn đang chạy nhưng dữ liệu không còn đầy đủ.
+                lblStatus.Text = "● Đang giám sát — bỏ sót " + overflowCount.ToString("N0") + " lần";
+                lblStatus.ForeColor = Color.FromArgb(200, 100, 0);
+                toolTipStatus.SetToolTip(lblStatus,
+                    "Bộ đệm của hệ điều hành đã bị tràn " + overflowCount.ToString("N0") + " lần." +
+                    Environment.NewLine +
+                    "Một số thay đổi trong những khoảng đó không được ghi nhận." +
+                    Environment.NewLine + Environment.NewLine +
+                    "Cách giảm bớt: thu hẹp phạm vi theo dõi (bỏ chọn thư mục con) " +
+                    "hoặc chọn bộ lọc phần mở rộng cụ thể thay vì tất cả tệp.");
+                return;
+            }
+
+            lblStatus.Text = "● Đang giám sát";
+            lblStatus.ForeColor = Color.FromArgb(16, 124, 16);
+            toolTipStatus.SetToolTip(lblStatus, "Đang theo dõi bình thường, chưa bỏ sót thay đổi nào.");
         }
 
         /// <summary>

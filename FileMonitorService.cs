@@ -12,6 +12,26 @@ namespace FileMonitorApps
         /// <summary>Ngoại lệ gây ra sự cố, có thể null.</summary>
         public Exception Error { get; private set; }
 
+        /// <summary>
+        /// true nếu sự cố là tràn bộ đệm nội bộ của FileSystemWatcher.
+        /// </summary>
+        /// <remarks>
+        /// Phải phân biệt rõ hai nhóm sự cố vì cách xử lý ngược nhau:
+        ///
+        /// - Tràn bộ đệm (InternalBufferOverflowException): bộ theo dõi VẪN CÒN SỐNG,
+        ///   chỉ là một số thay đổi đã bị mất trong lúc bộ đệm đầy. Dừng giám sát lúc này
+        ///   là phản tác dụng, vì sẽ mất luôn cả những thay đổi sau đó.
+        ///
+        /// - Các sự cố khác (thư mục bị xóa, ổ đĩa mạng ngắt kết nối...): bộ theo dõi
+        ///   không còn hoạt động được nữa, phải dừng hẳn.
+        ///
+        /// Nhờ thuộc tính này mà bên sử dụng không phải tự kiểm tra kiểu ngoại lệ.
+        /// </remarks>
+        public bool IsBufferOverflow
+        {
+            get { return Error is InternalBufferOverflowException; }
+        }
+
         public MonitorErrorEventArgs(Exception error)
         {
             Error = error;
@@ -477,10 +497,11 @@ namespace FileMonitorApps
         /// Xử lý sự cố do chính FileSystemWatcher báo lên.
         /// </summary>
         /// <remarks>
-        /// Chỉ phát sự kiện chứ không tự gọi Stop() ở đây, vì hàm này đang chạy trên
-        /// luồng nền của watcher — giải phóng đối tượng ngay bên trong lời gọi lại
-        /// của chính nó là việc nên tránh. Bên sử dụng gọi Stop() sau khi đã
-        /// chuyển về luồng của mình.
+        /// Chỉ phát sự kiện chứ không tự gọi Stop() ở đây, vì hai lý do:
+        /// - Hàm này đang chạy trên luồng nền của watcher, giải phóng đối tượng ngay bên
+        ///   trong lời gọi lại của chính nó là việc nên tránh.
+        /// - Không phải sự cố nào cũng cần dừng: tràn bộ đệm thì bộ theo dõi vẫn chạy được.
+        ///   Quyết định dừng hay không thuộc về bên sử dụng, dựa vào IsBufferOverflow.
         /// </remarks>
         private void Watcher_Error(object sender, ErrorEventArgs e)
         {
