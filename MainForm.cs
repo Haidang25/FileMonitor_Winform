@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace FileMonitorApps
@@ -33,6 +34,27 @@ namespace FileMonitorApps
         /// thời gian mà nhật ký bị thiếu dữ liệu.
         /// </summary>
         private int overflowCount;
+
+        /// <summary>
+        /// Các bản ghi đã nhận nhưng chưa kịp đưa lên bảng.
+        /// </summary>
+        private readonly List<FileEventLog> pendingEvents = new List<FileEventLog>();
+
+        /// <summary>
+        /// Khóa bảo vệ pendingEvents: luồng nền ghi vào, luồng giao diện đọc ra.
+        /// </summary>
+        private readonly object pendingLock = new object();
+
+        /// <summary>
+        /// Bằng 1 khi đã xếp hàng một lượt cập nhật giao diện nhưng lượt đó chưa chạy.
+        /// Dùng Interlocked nên đọc/ghi an toàn giữa các luồng mà không cần khóa.
+        /// </summary>
+        private int flushScheduled;
+
+        /// <summary>
+        /// Số lượt cập nhật giao diện đã thực hiện. Chỉ dùng để kiểm chứng hiệu quả gộp.
+        /// </summary>
+        private int flushCount;
 
         /// <summary>
         /// Số dòng tối đa giữ lại trên bảng sự kiện. Toàn bộ vẫn nằm trong tệp nhật ký.
@@ -630,8 +652,13 @@ namespace FileMonitorApps
             try
             {
                 dgvEvents.Rows.Clear();
+                lock (pendingLock)
+                {
+                    pendingEvents.Clear();
+                }
                 sessionEventCount = 0;
                 overflowCount = 0;
+                flushCount = 0;
                 UpdateEventCount();
 
                 monitorService.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
@@ -658,6 +685,11 @@ namespace FileMonitorApps
         private void btnStop_Click(object sender, EventArgs e)
         {
             monitorService.Stop();
+
+            // Đẩy nốt những bản ghi vừa nhận nhưng chưa lên bảng, nếu không
+            // các thay đổi cuối cùng trước khi dừng sẽ không bao giờ hiện ra.
+            FlushPendingEvents();
+
             SetMonitoringState(false);
         }
 
@@ -751,16 +783,77 @@ namespace FileMonitorApps
                 return;
             }
 
+            lock (pendingLock)
+            {
+                pendingEvents.Add(e.Entry);
+            }
+
+            // Chỉ xếp hàng MỘT lượt cập nhật giao diện cho cả loạt sự kiện đang dồn về.
+            // Nếu gọi BeginInvoke cho từng sự kiện thì khi thư mục thay đổi dồn dập,
+            // hàng đợi thông điệp của luồng giao diện bị ngập và cửa sổ đứng hẳn.
+            // Interlocked.Exchange đặt cờ và trả về giá trị cũ trong một bước không thể
+            // bị chen ngang, nên dù nhiều luồng cùng vào đây cũng chỉ một luồng xếp hàng.
+            if (Interlocked.Exchange(ref flushScheduled, 1) == 0)
+            {
+                try
+                {
+                    // Dùng BeginInvoke (không chờ) chứ không dùng Invoke (chờ cho tới khi
+                    // luồng giao diện xử lý xong). Invoke sẽ khóa luồng của FileSystemWatcher
+                    // trong lúc chờ, làm bộ đệm của hệ điều hành đầy nhanh hơn, và có nguy cơ
+                    // bế tắc nếu luồng giao diện lại đang chờ một khóa mà luồng này đang giữ.
+                    BeginInvoke(new Action(FlushPendingEvents));
+                }
+                catch (InvalidOperationException)
+                {
+                    // Form bị đóng ngay giữa lúc xếp hàng lời gọi.
+                    Interlocked.Exchange(ref flushScheduled, 0);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Đưa toàn bộ bản ghi đang chờ lên bảng. Luôn chạy trên luồng giao diện.
+        /// </summary>
+        private void FlushPendingEvents()
+        {
+            // Hạ cờ TRƯỚC khi lấy dữ liệu ra: sự kiện đến trong lúc đang cập nhật sẽ
+            // xếp hàng được một lượt mới, không bị bỏ sót.
+            Interlocked.Exchange(ref flushScheduled, 0);
+
+            List<FileEventLog> batch;
+            lock (pendingLock)
+            {
+                if (pendingEvents.Count == 0)
+                {
+                    return;
+                }
+
+                batch = new List<FileEventLog>(pendingEvents);
+                pendingEvents.Clear();
+            }
+
+            if (IsDisposed || dgvEvents.IsDisposed)
+            {
+                return;
+            }
+
+            flushCount++;
+
+            // Tắt vẽ lại trong lúc thêm cả lô để bảng không nháy và không vẽ lại từng dòng.
+            dgvEvents.SuspendLayout();
             try
             {
-                // Dùng BeginInvoke với một delegate RIÊNG cho phần hiển thị, thay vì gọi lại
-                // chính hàm này: gọi lại chính nó sẽ khiến bản ghi bị ghi xuống tệp hai lần.
-                BeginInvoke(new Action<FileEventLog>(AddEventRow), e.Entry);
+                foreach (FileEventLog entry in batch)
+                {
+                    AddEventRow(entry);
+                }
             }
-            catch (InvalidOperationException)
+            finally
             {
-                // Form bị đóng ngay giữa lúc xếp hàng lời gọi.
+                dgvEvents.ResumeLayout();
             }
+
+            UpdateEventCount();
         }
 
         /// <summary>
@@ -796,7 +889,6 @@ namespace FileMonitorApps
             }
 
             sessionEventCount++;
-            UpdateEventCount();
         }
 
         /// <summary>
