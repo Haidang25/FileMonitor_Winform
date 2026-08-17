@@ -54,6 +54,7 @@
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="EventCounter.cs" />
     <Compile Include="EventDebouncer.cs" />
     <Compile Include="FileEventDetectedEventArgs.cs" />
     <Compile Include="FileEventLog.cs" />

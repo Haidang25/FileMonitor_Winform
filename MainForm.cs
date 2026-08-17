@@ -21,13 +21,13 @@ namespace FileMonitorApps
         private readonly FileMonitorService monitorService = new FileMonitorService();
 
         /// <summary>
-        /// Số sự kiện đã ghi nhận trong phiên giám sát hiện tại.
+        /// Bộ đếm sự kiện của phiên giám sát hiện tại, tách theo từng loại.
         /// </summary>
         /// <remarks>
-        /// Không lấy từ dgvEvents.Rows.Count vì bảng chỉ giữ lại một số dòng gần nhất,
-        /// còn con số này phải phản ánh tổng số thay đổi thực sự đã bắt được.
+        /// Không lấy số liệu từ dgvEvents.Rows.Count vì bảng chỉ giữ lại một số dòng gần
+        /// nhất, còn con số này phải phản ánh tổng số thay đổi thực sự đã bắt được.
         /// </remarks>
-        private int sessionEventCount;
+        private readonly EventCounter eventCounter = new EventCounter();
 
         /// <summary>
         /// Số lần tràn bộ đệm trong phiên hiện tại. Mỗi lần tương ứng với một khoảng
@@ -656,7 +656,7 @@ namespace FileMonitorApps
                 {
                     pendingEvents.Clear();
                 }
-                sessionEventCount = 0;
+                eventCounter.Reset();
                 overflowCount = 0;
                 flushCount = 0;
                 UpdateEventCount();
@@ -889,7 +889,7 @@ namespace FileMonitorApps
                 dgvEvents.Rows.RemoveAt(dgvEvents.Rows.Count - 1);
             }
 
-            sessionEventCount++;
+            eventCounter.Increment(entry.EventType);
         }
 
         /// <summary>
@@ -1074,14 +1074,15 @@ namespace FileMonitorApps
         /// </remarks>
         private void UpdateEventCount()
         {
-            string text = "Tổng số sự kiện: " + sessionEventCount.ToString("N0");
+            string text = eventCounter.ToSummary();
 
-            if (dgvEvents.Rows.Count != sessionEventCount)
+            if (dgvEvents.Rows.Count != eventCounter.Total)
             {
-                text += "   —   đang hiển thị: " + dgvEvents.Rows.Count.ToString("N0");
+                text += "   —   đang hiển thị " + dgvEvents.Rows.Count.ToString("N0");
             }
 
             lblEventCount.Text = text;
+            toolTipMain.SetToolTip(lblEventCount, eventCounter.ToDetailedSummary());
         }
 
         /// <summary>

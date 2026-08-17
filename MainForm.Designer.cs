@@ -286,13 +286,15 @@
             //
             // lblEventCount
             //
-            this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.lblEventCount.AutoSize = true;
+            this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblEventCount.AutoEllipsis = true;
             this.lblEventCount.Location = new System.Drawing.Point(19, 487);
             this.lblEventCount.Name = "lblEventCount";
-            this.lblEventCount.Size = new System.Drawing.Size(122, 17);
+            this.lblEventCount.Size = new System.Drawing.Size(650, 22);
             this.lblEventCount.TabIndex = 10;
-            this.lblEventCount.Text = "Tổng số sự kiện: 0";
+            this.lblEventCount.Text = "Tổng 0";
+            this.lblEventCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             //
             // tabLog
             //
