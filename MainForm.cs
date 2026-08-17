@@ -57,7 +57,7 @@ namespace FileMonitorApps
         {
             InitializeComponent();
 
-            monitorService.EventOccurred += MonitorService_EventOccurred;
+            monitorService.FileEventDetected += MonitorService_FileEventDetected;
             monitorService.ErrorOccurred += MonitorService_ErrorOccurred;
         }
 
@@ -713,7 +713,7 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Nhận một thay đổi do phần lõi báo lên: ghi xuống tệp rồi hiển thị lên bảng.
+        /// Phương thức xử lý sự kiện FileEventDetected: ghi xuống tệp rồi hiển thị lên bảng.
         /// </summary>
         /// <remarks>
         /// Hàm này chạy trên LUỒNG NỀN của FileSystemWatcher.
@@ -721,7 +721,7 @@ namespace FileMonitorApps
         /// mà đẩy sang luồng giao diện thì mỗi thay đổi sẽ làm giao diện khựng một nhịp.
         /// Chỉ phần cập nhật control mới được chuyển về luồng giao diện.
         /// </remarks>
-        private void MonitorService_EventOccurred(object sender, FileEventOccurredEventArgs e)
+        private void MonitorService_FileEventDetected(object sender, FileEventDetectedEventArgs e)
         {
             if (e == null || e.Entry == null)
             {
@@ -897,7 +897,7 @@ namespace FileMonitorApps
         /// </summary>
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            monitorService.EventOccurred -= MonitorService_EventOccurred;
+            monitorService.FileEventDetected -= MonitorService_FileEventDetected;
             monitorService.ErrorOccurred -= MonitorService_ErrorOccurred;
             monitorService.Dispose();
         }

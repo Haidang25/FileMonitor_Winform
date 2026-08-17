@@ -5,20 +5,6 @@ using System.IO;
 namespace FileMonitorApps
 {
     /// <summary>
-    /// Dữ liệu kèm theo khi phát hiện một thay đổi.
-    /// </summary>
-    internal class FileEventOccurredEventArgs : EventArgs
-    {
-        /// <summary>Bản ghi mô tả thay đổi vừa phát hiện.</summary>
-        public FileEventLog Entry { get; private set; }
-
-        public FileEventOccurredEventArgs(FileEventLog entry)
-        {
-            Entry = entry;
-        }
-    }
-
-    /// <summary>
     /// Dữ liệu kèm theo khi bản thân việc theo dõi gặp sự cố.
     /// </summary>
     internal class MonitorErrorEventArgs : EventArgs
@@ -41,7 +27,7 @@ namespace FileMonitorApps
     /// Nhờ vậy phần lõi của chương trình kiểm thử được độc lập, và nếu sau này
     /// muốn làm thêm bản chạy nền (Windows Service) thì dùng lại được nguyên vẹn.
     ///
-    /// QUAN TRỌNG: các sự kiện EventOccurred và ErrorOccurred được phát trên
+    /// QUAN TRỌNG: các sự kiện FileEventDetected và ErrorOccurred được phát trên
     /// LUỒNG NỀN của FileSystemWatcher, không phải luồng giao diện. Bên sử dụng
     /// phải tự chuyển về luồng giao diện (Invoke/BeginInvoke) trước khi cập nhật control.
     /// Việc chuyển luồng cố tình để ở phía giao diện, vì lớp này không được biết
@@ -91,9 +77,13 @@ namespace FileMonitorApps
         private readonly object recentChangesLock = new object();
 
         /// <summary>
-        /// Phát mỗi khi phát hiện một thay đổi. Chạy trên luồng nền.
+        /// Phát mỗi khi phát hiện một thay đổi trong thư mục đang theo dõi.
         /// </summary>
-        public event EventHandler<FileEventOccurredEventArgs> EventOccurred;
+        /// <remarks>
+        /// Chạy trên LUỒNG NỀN của FileSystemWatcher. Xem chú thích của lớp.
+        /// Sự kiện dùng delegate riêng FileEventDetectedEventHandler.
+        /// </remarks>
+        public event FileEventDetectedEventHandler FileEventDetected;
 
         /// <summary>
         /// Phát khi việc theo dõi gặp sự cố (tràn bộ đệm, mất thư mục...). Chạy trên luồng nền.
@@ -236,9 +226,13 @@ namespace FileMonitorApps
         #region Phát sự kiện
 
         /// <summary>
-        /// Phát sự kiện báo có thay đổi. Bỏ qua nếu chưa ai đăng ký nghe.
+        /// Phát sự kiện FileEventDetected. Bỏ qua nếu chưa ai đăng ký nghe.
         /// </summary>
-        protected void RaiseEventOccurred(FileEventLog entry)
+        /// <remarks>
+        /// Đặt tên theo quy ước On + tên sự kiện, và để protected virtual để lớp con
+        /// có thể chặn hoặc bổ sung xử lý trước khi sự kiện được phát ra.
+        /// </remarks>
+        protected virtual void OnFileEventDetected(FileEventLog entry)
         {
             if (entry == null)
             {
@@ -247,17 +241,17 @@ namespace FileMonitorApps
 
             // Chụp lại tham chiếu trước khi kiểm tra null: người nghe có thể hủy đăng ký
             // từ một luồng khác ngay giữa lúc kiểm tra và lúc gọi.
-            EventHandler<FileEventOccurredEventArgs> handler = EventOccurred;
+            FileEventDetectedEventHandler handler = FileEventDetected;
             if (handler != null)
             {
-                handler(this, new FileEventOccurredEventArgs(entry));
+                handler(this, new FileEventDetectedEventArgs(entry));
             }
         }
 
         /// <summary>
         /// Phát sự kiện báo sự cố.
         /// </summary>
-        protected void RaiseErrorOccurred(Exception error)
+        protected virtual void OnErrorOccurred(Exception error)
         {
             EventHandler<MonitorErrorEventArgs> handler = ErrorOccurred;
             if (handler != null)
@@ -280,7 +274,7 @@ namespace FileMonitorApps
                 return;
             }
 
-            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
+            OnFileEventDetected(FileEventLog.FromFileSystemEvent(e));
         }
 
         /// <summary>
@@ -424,7 +418,7 @@ namespace FileMonitorApps
 
             RememberPath(e.FullPath);
 
-            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
+            OnFileEventDetected(FileEventLog.FromFileSystemEvent(e));
         }
 
         /// <summary>
@@ -449,7 +443,7 @@ namespace FileMonitorApps
             // Tệp không còn nữa thì lịch sử lọc trùng của nó cũng hết ý nghĩa.
             ForgetPath(e.FullPath);
 
-            RaiseEventOccurred(FileEventLog.FromFileSystemEvent(e));
+            OnFileEventDetected(FileEventLog.FromFileSystemEvent(e));
         }
 
         /// <summary>
@@ -476,7 +470,7 @@ namespace FileMonitorApps
             // Đường dẫn cũ không còn tồn tại nên bỏ khỏi lịch sử lọc trùng.
             ForgetPath(e.OldFullPath);
 
-            RaiseEventOccurred(FileEventLog.FromRenamedEvent(e));
+            OnFileEventDetected(FileEventLog.FromRenamedEvent(e));
         }
 
         /// <summary>
@@ -490,7 +484,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Error(object sender, ErrorEventArgs e)
         {
-            RaiseErrorOccurred(e != null ? e.GetException() : null);
+            OnErrorOccurred(e != null ? e.GetException() : null);
         }
 
         #endregion
