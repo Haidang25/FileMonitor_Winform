@@ -1045,13 +1045,19 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Giải phóng bộ theo dõi khi đóng chương trình để không bỏ sót tài nguyên.
+        /// Dừng giám sát khi đóng chương trình.
         /// </summary>
+        /// <remarks>
+        /// Chỉ dừng ở đây, việc giải phóng để cho Dispose của Form lo (xem
+        /// MainForm.Designer.cs). Tách như vậy vì FormClosing không phải lúc nào cũng
+        /// chạy — Form bị Dispose trực tiếp thì sự kiện này không phát ra.
+        /// Hủy đăng ký trước khi dừng để không nhận thêm sự kiện đến muộn.
+        /// </remarks>
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             monitorService.FileEventDetected -= MonitorService_FileEventDetected;
             monitorService.ErrorOccurred -= MonitorService_ErrorOccurred;
-            monitorService.Dispose();
+            monitorService.Stop();
         }
 
         #endregion

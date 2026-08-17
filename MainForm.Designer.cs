@@ -13,9 +13,20 @@
         /// <param name="disposing">true nếu cần giải phóng tài nguyên được quản lý; ngược lại là false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                // Giải phóng phần lõi ở đây chứ không chỉ trong FormClosing:
+                // Form có thể bị Dispose mà không qua FormClosing (ví dụ tạo ra để
+                // kiểm thử rồi hủy, hoặc bị đóng bằng Dispose trực tiếp).
+                if (monitorService != null)
+                {
+                    monitorService.Dispose();
+                }
+
+                if (components != null)
+                {
+                    components.Dispose();
+                }
             }
             base.Dispose(disposing);
         }

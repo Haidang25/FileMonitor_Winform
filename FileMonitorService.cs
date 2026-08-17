@@ -71,6 +71,22 @@ namespace FileMonitorApps
         /// </summary>
         private readonly EventDebouncer debouncer = new EventDebouncer();
 
+        /// <summary>Đã giải phóng hay chưa.</summary>
+        private bool disposed;
+
+        /// <summary>
+        /// Có nhận sự kiện nữa hay không.
+        /// </summary>
+        /// <remarks>
+        /// Đặt EnableRaisingEvents = false KHÔNG có nghĩa là mọi sự kiện đã dừng ngay:
+        /// những sự kiện đã được xếp vào hàng đợi thread pool trước đó vẫn sẽ gọi tới
+        /// các phương thức xử lý, kể cả sau khi Stop() đã trả về. Nếu không chặn lại,
+        /// bên sử dụng sẽ nhận thêm vài sự kiện trong lúc giao diện đã hiện "Chưa giám sát".
+        ///
+        /// Đánh dấu volatile để mọi luồng đều thấy giá trị mới nhất mà không cần khóa.
+        /// </remarks>
+        private volatile bool acceptingEvents;
+
         /// <summary>
         /// Phát mỗi khi phát hiện một thay đổi trong thư mục đang theo dõi.
         /// </summary>
@@ -123,10 +139,16 @@ namespace FileMonitorApps
         /// <param name="folderPath">Thư mục cần theo dõi.</param>
         /// <param name="filter">Mẫu lọc phần mở rộng, ví dụ "*.txt". Để trống nghĩa là mọi tệp.</param>
         /// <param name="includeSubdirectories">Có theo dõi cả thư mục con hay không.</param>
+        /// <exception cref="ObjectDisposedException">Đối tượng đã bị giải phóng.</exception>
         /// <exception cref="ArgumentException">Đường dẫn rỗng.</exception>
         /// <exception cref="DirectoryNotFoundException">Thư mục không tồn tại.</exception>
         public void Start(string folderPath, string filter, bool includeSubdirectories)
         {
+            if (disposed)
+            {
+                throw new ObjectDisposedException("FileMonitorService");
+            }
+
             if (string.IsNullOrEmpty(folderPath) || folderPath.Trim().Length == 0)
             {
                 throw new ArgumentException("Chưa chỉ định thư mục cần theo dõi.", "folderPath");
@@ -173,6 +195,7 @@ namespace FileMonitorApps
             watcher.Deleted += Watcher_Deleted;
             watcher.Created += Watcher_Created;
 
+            acceptingEvents = true;
             watcher.EnableRaisingEvents = true;
         }
 
@@ -181,8 +204,13 @@ namespace FileMonitorApps
         /// </summary>
         public void Stop()
         {
+            // Đóng cổng nhận sự kiện trước tiên, để những sự kiện đang trên đường tới
+            // không lọt qua trong lúc đang dọn dẹp.
+            acceptingEvents = false;
+
             if (watcher == null)
             {
+                debouncer.Clear();
                 return;
             }
 
@@ -209,11 +237,39 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Giải phóng tài nguyên khi không dùng nữa.
+        /// Giải phóng tài nguyên khi không dùng nữa. Gọi nhiều lần không gây lỗi.
         /// </summary>
         public void Dispose()
         {
-            Stop();
+            Dispose(true);
+
+            // Lớp này không có finalizer, nhưng vẫn gọi theo đúng mẫu Dispose chuẩn
+            // để nếu sau này lớp con thêm finalizer thì hành vi vẫn đúng.
+            GC.SuppressFinalize(this);
+        }
+
+        /// <param name="disposing">
+        /// true khi được gọi từ Dispose(); false khi được gọi từ finalizer.
+        /// </param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                Stop();
+
+                // Bỏ mọi phương thức đã đăng ký. Không bỏ thì đối tượng này còn giữ
+                // tham chiếu tới Form; Form không được thu hồi, và một sự kiện đến muộn
+                // có thể gọi vào Form đã đóng.
+                FileEventDetected = null;
+                ErrorOccurred = null;
+            }
+
+            disposed = true;
         }
 
         #endregion
@@ -264,6 +320,11 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Changed(object sender, FileSystemEventArgs e)
         {
+            if (!acceptingEvents)
+            {
+                return;
+            }
+
             if (e == null || !debouncer.ShouldReport(e.FullPath))
             {
                 return;
@@ -288,6 +349,11 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Created(object sender, FileSystemEventArgs e)
         {
+            if (!acceptingEvents)
+            {
+                return;
+            }
+
             if (e == null)
             {
                 return;
@@ -312,6 +378,11 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Deleted(object sender, FileSystemEventArgs e)
         {
+            if (!acceptingEvents)
+            {
+                return;
+            }
+
             if (e == null)
             {
                 return;
@@ -339,6 +410,11 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
+            if (!acceptingEvents)
+            {
+                return;
+            }
+
             if (e == null)
             {
                 return;
@@ -362,6 +438,11 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Error(object sender, ErrorEventArgs e)
         {
+            if (!acceptingEvents)
+            {
+                return;
+            }
+
             OnErrorOccurred(e != null ? e.GetException() : null);
         }
 
