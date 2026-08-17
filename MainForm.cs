@@ -839,6 +839,11 @@ namespace FileMonitorApps
 
             flushCount++;
 
+            // Ghi lại chỗ người dùng đang xem TRƯỚC khi chèn thêm dòng.
+            // Dòng mới được chèn lên đầu bảng nên mọi dòng cũ bị đẩy xuống; nếu không
+            // bù lại thì người đang đọc một dòng ở giữa sẽ thấy nội dung tự trượt đi.
+            int firstVisibleBefore = GetFirstVisibleRowIndex();
+
             // Tắt vẽ lại trong lúc thêm cả lô để bảng không nháy và không vẽ lại từng dòng.
             dgvEvents.SuspendLayout();
             try
@@ -853,8 +858,75 @@ namespace FileMonitorApps
                 dgvEvents.ResumeLayout();
             }
 
+            RestoreViewPosition(firstVisibleBefore, batch.Count);
+
             UpdateEventCount();
             UpdateButtonStates();
+        }
+
+        /// <summary>
+        /// Chỉ số dòng đầu tiên đang nhìn thấy, -1 nếu bảng trống.
+        /// </summary>
+        private int GetFirstVisibleRowIndex()
+        {
+            if (dgvEvents.Rows.Count == 0)
+            {
+                return -1;
+            }
+
+            try
+            {
+                return dgvEvents.FirstDisplayedScrollingRowIndex;
+            }
+            catch (Exception)
+            {
+                // Bảng chưa được vẽ lần nào thì thuộc tính này có thể ném ngoại lệ.
+                return -1;
+            }
+        }
+
+        /// <summary>
+        /// Đưa khung nhìn về đúng bản ghi người dùng đang đọc sau khi đã chèn thêm dòng.
+        /// </summary>
+        /// <param name="firstVisibleBefore">Dòng đầu tiên nhìn thấy trước khi chèn.</param>
+        /// <param name="insertedCount">Số dòng vừa chèn lên đầu.</param>
+        /// <remarks>
+        /// Chỉ cần bù cho vị trí cuộn. Dòng đang chọn thì KHÔNG phải xử lý: trạng thái
+        /// chọn nằm trên chính đối tượng DataGridViewRow, nên chèn thêm dòng phía trên
+        /// làm chỉ số của nó tăng lên nhưng nó vẫn là đúng bản ghi đó.
+        /// Ngược lại, FirstDisplayedScrollingRowIndex lại tính theo CHỈ SỐ, nên không bù
+        /// thì nội dung đang đọc sẽ tự trượt xuống.
+        ///
+        /// Nếu người dùng đang ở trên cùng (đang theo dòng chảy thời gian thực) thì để
+        /// nguyên, vì họ muốn thấy dòng mới nhất. Chỉ bù khi họ đã cuộn xuống đọc phần cũ.
+        /// </remarks>
+        private void RestoreViewPosition(int firstVisibleBefore, int insertedCount)
+        {
+            if (insertedCount <= 0 || dgvEvents.Rows.Count == 0)
+            {
+                return;
+            }
+
+            // Đang ở đầu bảng thì giữ nguyên để dòng mới nhất luôn nằm trong tầm mắt.
+            if (firstVisibleBefore <= 0)
+            {
+                return;
+            }
+
+            int target = firstVisibleBefore + insertedCount;
+            if (target > dgvEvents.Rows.Count - 1)
+            {
+                target = dgvEvents.Rows.Count - 1;
+            }
+
+            try
+            {
+                dgvEvents.FirstDisplayedScrollingRowIndex = target;
+            }
+            catch (Exception)
+            {
+                // Không cuộn được thì bỏ qua: đây chỉ là tiện lợi khi xem, không phải dữ liệu.
+            }
         }
 
         /// <summary>
@@ -876,11 +948,20 @@ namespace FileMonitorApps
                 entry.FullPath
             });
 
+            DataGridViewRow row = dgvEvents.Rows[0];
+
+            // Tô màu riêng ô "Loại sự kiện" để nhận ra loại thay đổi mà không phải đọc chữ.
+            // Chỉ tô một ô chứ không tô cả dòng: tô cả dòng sẽ làm bảng rối và khó đọc
+            // phần đường dẫn, vốn là nội dung dài nhất.
+            row.Cells[1].Style.BackColor = GetEventTypeColor(entry.EventType);
+            row.Cells[1].Style.SelectionBackColor = GetEventTypeColor(entry.EventType);
+            row.Cells[1].Style.SelectionForeColor = System.Drawing.SystemColors.ControlText;
+
             // Với sự kiện đổi tên, đưa tên cũ vào chú thích của ô đường dẫn:
             // bảng chỉ có 4 cột theo thiết kế, nhưng thông tin này không được để mất.
             if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
             {
-                dgvEvents.Rows[0].Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
+                row.Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
             }
 
             // Cắt bớt phần cũ nhất khi bảng quá dài. Dữ liệu đầy đủ vẫn nằm trong tệp nhật ký.
@@ -1063,6 +1144,32 @@ namespace FileMonitorApps
         #endregion
 
         #region Danh sách sự kiện
+
+        /// <summary>
+        /// Màu nền của ô "Loại sự kiện" theo từng loại thay đổi.
+        /// </summary>
+        /// <remarks>
+        /// Dùng màu nhạt để chữ đen vẫn đọc rõ. Ý nghĩa màu theo quy ước thông thường:
+        /// xanh lá là thêm vào, vàng là sửa, đỏ là mất đi, xanh dương là di chuyển.
+        /// Màu chỉ là dấu hiệu phụ - chữ trong ô vẫn ghi rõ tên loại, nên người dùng
+        /// khó phân biệt màu vẫn đọc được bình thường.
+        /// </remarks>
+        private static Color GetEventTypeColor(FileEventType eventType)
+        {
+            switch (eventType)
+            {
+                case FileEventType.Created:
+                    return Color.FromArgb(226, 245, 228);
+                case FileEventType.Changed:
+                    return Color.FromArgb(255, 247, 214);
+                case FileEventType.Deleted:
+                    return Color.FromArgb(253, 231, 232);
+                case FileEventType.Renamed:
+                    return Color.FromArgb(226, 238, 252);
+                default:
+                    return SystemColors.Window;
+            }
+        }
 
         /// <summary>
         /// Cập nhật nhãn tổng số sự kiện của phiên giám sát hiện tại.
