@@ -30,6 +30,12 @@ namespace FileMonitorApps
         private readonly EventCounter eventCounter = new EventCounter();
 
         /// <summary>
+        /// Đối tượng đọc/ghi tệp nhật ký. Cả chương trình dùng đúng một đối tượng,
+        /// vì khóa ghi tệp là khóa của từng đối tượng.
+        /// </summary>
+        private readonly LogService logService = new LogService();
+
+        /// <summary>
         /// Số lần tràn bộ đệm trong phiên hiện tại. Mỗi lần tương ứng với một khoảng
         /// thời gian mà nhật ký bị thiếu dữ liệu.
         /// </summary>
@@ -282,14 +288,14 @@ namespace FileMonitorApps
         {
             try
             {
-                allLogEntries = LogStorage.ReadAll();
+                allLogEntries = logService.ReadAll();
                 ApplyLogFilters();
 
                 if (allLogEntries.Count == 0)
                 {
                     MessageBox.Show(this,
                         "Chưa có nhật ký nào được ghi." + Environment.NewLine +
-                        Environment.NewLine + "Tệp nhật ký: " + LogStorage.LogFilePath,
+                        Environment.NewLine + "Tệp nhật ký: " + logService.LogFilePath,
                         "Nhật ký trống",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
@@ -312,7 +318,7 @@ namespace FileMonitorApps
             catch (Exception ex)
             {
                 MessageBox.Show(this,
-                    "Không đọc được tệp nhật ký:" + Environment.NewLine + LogStorage.LogFilePath +
+                    "Không đọc được tệp nhật ký:" + Environment.NewLine + logService.LogFilePath +
                     Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
                     "Lỗi",
                     MessageBoxButtons.OK,
@@ -340,7 +346,7 @@ namespace FileMonitorApps
 
             try
             {
-                LogStorage.ExportCsv(saveFileDialog.FileName, loadedLogEntries);
+                logService.ExportCsv(saveFileDialog.FileName, loadedLogEntries);
 
                 MessageBox.Show(this,
                     "Đã xuất " + loadedLogEntries.Count.ToString("N0") + " bản ghi ra tệp:" +
@@ -380,14 +386,14 @@ namespace FileMonitorApps
 
             try
             {
-                LogStorage.Clear();
+                logService.Clear();
                 allLogEntries.Clear();
                 ApplyLogFilters();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(this,
-                    "Không xóa được tệp nhật ký:" + Environment.NewLine + LogStorage.LogFilePath +
+                    "Không xóa được tệp nhật ký:" + Environment.NewLine + logService.LogFilePath +
                     Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
                     "Lỗi",
                     MessageBoxButtons.OK,
@@ -769,7 +775,7 @@ namespace FileMonitorApps
 
             try
             {
-                LogStorage.Append(e.Entry);
+                logService.Append(e.Entry);
             }
             catch (Exception)
             {

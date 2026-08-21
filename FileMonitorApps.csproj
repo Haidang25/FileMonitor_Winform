@@ -60,7 +60,7 @@
     <Compile Include="FileEventLog.cs" />
     <Compile Include="FileEventType.cs" />
     <Compile Include="FileMonitorService.cs" />
-    <Compile Include="LogStorage.cs" />
+    <Compile Include="LogService.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="MainForm.resx">
