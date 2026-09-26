@@ -111,6 +111,10 @@ namespace FileMonitorApps
         private void MainForm_Load(object sender, EventArgs e)
         {
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
+
+            // Số canh phải để các kích thước thẳng hàng theo hàng đơn vị, dễ so sánh.
+            colSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            colLogSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             LoadFileFilters();
             UpdateEventCount();
             SetMonitoringState(false);
@@ -815,6 +819,7 @@ namespace FileMonitorApps
                         entry.Time.ToString(DisplayTimeFormat),
                         entry.EventType.ToString(),
                         entry.FileName,
+                        GetSizeText(entry),
                         entry.FullPath);
 
                     DataGridViewRow row = dgvLogHistory.Rows[index];
@@ -828,8 +833,10 @@ namespace FileMonitorApps
                     // Bảng chỉ có 4 cột; tên cũ của sự kiện đổi tên đưa vào chú thích.
                     if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
                     {
-                        row.Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
+                        row.Cells[colLogFullPath.Index].ToolTipText = "Tên cũ: " + entry.OldFullPath;
                     }
+
+                    row.Cells[colLogSize.Index].ToolTipText = GetSizeToolTip(entry);
                 }
             }
             finally
@@ -1130,6 +1137,7 @@ namespace FileMonitorApps
                 entry.Time.ToString("HH:mm:ss"),
                 entry.EventType.ToString(),
                 entry.FileName,
+                GetSizeText(entry),
                 entry.FullPath
             });
 
@@ -1146,8 +1154,11 @@ namespace FileMonitorApps
             // bảng chỉ có 4 cột theo thiết kế, nhưng thông tin này không được để mất.
             if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
             {
-                row.Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
+                row.Cells[colFullPath.Index].ToolTipText = "Tên cũ: " + entry.OldFullPath;
             }
+
+            // Lý do không có kích thước (tệp bị khóa, đã bị xóa...) đưa vào chú thích ô "Kích thước".
+            row.Cells[colSize.Index].ToolTipText = GetSizeToolTip(entry);
 
             // Cắt bớt phần cũ nhất khi bảng quá dài. Dữ liệu đầy đủ vẫn nằm trong tệp nhật ký.
             while (dgvEvents.Rows.Count > MaxDisplayedEvents)
@@ -1352,6 +1363,70 @@ namespace FileMonitorApps
         #endregion
 
         #region Danh sách sự kiện
+
+        /// <summary>
+        /// Chữ hiển thị trong cột "Kích thước".
+        /// </summary>
+        /// <remarks>
+        /// Phân biệt ba trường hợp không có con số, vì ý nghĩa khác nhau:
+        /// - Deleted: bỏ trống — tệp không còn, không có gì để đo, đây không phải lỗi.
+        /// - Thư mục : ghi "Thư mục" — thư mục không có kích thước.
+        /// - Còn lại : "N/A" — đáng lẽ đọc được nhưng không đọc được (tệp bị khóa, đã bị xóa
+        ///   ngay sau khi tạo...). Lý do cụ thể nằm trong chú thích của ô.
+        /// </remarks>
+        private static string GetSizeText(FileEventLog entry)
+        {
+            if (entry.FileSize.HasValue)
+            {
+                return FormatSize(entry.FileSize.Value);
+            }
+
+            if (entry.EventType == FileEventType.Deleted)
+            {
+                return string.Empty;
+            }
+
+            if (entry.Note == FileSizeProbe.NoteDirectory)
+            {
+                return FileSizeProbe.NoteDirectory;
+            }
+
+            return "N/A";
+        }
+
+        /// <summary>
+        /// Chú thích khi đưa chuột vào ô "Kích thước": số byte chính xác, hoặc lý do không có.
+        /// </summary>
+        private static string GetSizeToolTip(FileEventLog entry)
+        {
+            if (entry.FileSize.HasValue)
+            {
+                return entry.FileSize.Value.ToString("N0") + " byte";
+            }
+
+            return entry.Note ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Đổi số byte thành dạng dễ đọc: 512 B, 1,5 KB, 3,2 MB...
+        /// Dùng định dạng số của máy người dùng (dấu thập phân là dấu phẩy với máy tiếng Việt).
+        /// </summary>
+        internal static string FormatSize(long bytes)
+        {
+            string[] units = { "B", "KB", "MB", "GB", "TB" };
+            double value = bytes;
+            int unit = 0;
+
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+
+            return unit == 0
+                ? bytes.ToString("N0") + " B"
+                : value.ToString("0.#") + " " + units[unit];
+        }
 
         /// <summary>
         /// Màu nền của ô "Loại sự kiện" theo từng loại thay đổi.

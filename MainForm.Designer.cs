@@ -57,6 +57,7 @@
             this.colTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colEventType = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.lblEventCount = new System.Windows.Forms.Label();
             this.btnLoadLog = new System.Windows.Forms.Button();
@@ -66,6 +67,7 @@
             this.colLogTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogType = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLogSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
             this.toolTipMain = new System.Windows.Forms.ToolTip(this.components);
@@ -245,6 +247,7 @@
             this.colTime,
             this.colEventType,
             this.colFileName,
+            this.colSize,
             this.colFullPath});
             this.dgvEvents.Location = new System.Drawing.Point(19, 145);
             this.dgvEvents.Name = "dgvEvents";
@@ -275,6 +278,13 @@
             this.colFileName.Name = "colFileName";
             this.colFileName.ReadOnly = true;
             this.colFileName.Width = 220;
+            //
+            // colSize
+            //
+            this.colSize.HeaderText = "Kích thước";
+            this.colSize.Name = "colSize";
+            this.colSize.ReadOnly = true;
+            this.colSize.Width = 90;
             //
             // colFullPath
             //
@@ -423,6 +433,7 @@
             this.colLogTime,
             this.colLogType,
             this.colLogFileName,
+            this.colLogSize,
             this.colLogFullPath});
             this.dgvLogHistory.Location = new System.Drawing.Point(19, 145);
             this.dgvLogHistory.Name = "dgvLogHistory";
@@ -453,6 +464,13 @@
             this.colLogFileName.Name = "colLogFileName";
             this.colLogFileName.ReadOnly = true;
             this.colLogFileName.Width = 200;
+            //
+            // colLogSize
+            //
+            this.colLogSize.HeaderText = "Kích thước";
+            this.colLogSize.Name = "colLogSize";
+            this.colLogSize.ReadOnly = true;
+            this.colLogSize.Width = 90;
             //
             // colLogFullPath
             //
@@ -515,6 +533,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colTime;
         private System.Windows.Forms.DataGridViewTextBoxColumn colEventType;
         private System.Windows.Forms.DataGridViewTextBoxColumn colFileName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colSize;
         private System.Windows.Forms.DataGridViewTextBoxColumn colFullPath;
         private System.Windows.Forms.Label lblEventCount;
         private System.Windows.Forms.Button btnLoadLog;
@@ -524,6 +543,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogTime;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogType;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLogSize;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
         private System.Windows.Forms.SaveFileDialog saveFileDialog;
         private System.Windows.Forms.ToolTip toolTipMain;

@@ -60,6 +60,7 @@
     <Compile Include="FileEventLog.cs" />
     <Compile Include="FileEventType.cs" />
     <Compile Include="FileMonitorService.cs" />
+    <Compile Include="FileSizeProbe.cs" />
     <Compile Include="FolderValidator.cs" />
     <Compile Include="LogFilter.cs" />
     <Compile Include="LogService.cs" />

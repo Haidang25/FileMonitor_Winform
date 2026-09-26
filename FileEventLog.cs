@@ -43,12 +43,25 @@ namespace FileMonitorApps
         /// </summary>
         public string OldFullPath { get; set; }
 
+        /// <summary>
+        /// Kích thước tệp (byte) tại thời điểm phát hiện; null nếu là thư mục, sự kiện Deleted,
+        /// hoặc không đọc được (khi đó Note cho biết lý do).
+        /// </summary>
+        public long? FileSize { get; set; }
+
+        /// <summary>
+        /// Ghi chú thêm, ví dụ lý do không đọc được kích thước. Chuỗi rỗng nếu không có gì.
+        /// </summary>
+        public string Note { get; set; }
+
         public FileEventLog()
         {
             Time = DateTime.Now;
             FileName = string.Empty;
             FullPath = string.Empty;
             OldFullPath = string.Empty;
+            FileSize = null;
+            Note = string.Empty;
         }
 
         #region Tạo bản ghi từ sự kiện của FileSystemWatcher
@@ -128,7 +141,9 @@ namespace FileMonitorApps
                 EventType.ToString(),
                 Sanitize(FileName),
                 Sanitize(FullPath),
-                Sanitize(OldFullPath)
+                Sanitize(OldFullPath),
+                FileSize.HasValue ? FileSize.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                Sanitize(Note)
             });
         }
 
@@ -149,7 +164,8 @@ namespace FileMonitorApps
 
             string[] parts = line.Split(Separator);
 
-            // Cột thứ 5 (đường dẫn cũ) là tùy chọn nên chấp nhận dòng chỉ có 4 cột.
+            // Từ cột thứ 5 trở đi là tùy chọn: 5 = đường dẫn cũ, 6 = kích thước, 7 = ghi chú.
+            // Nhờ vậy vẫn đọc được tệp nhật ký ghi bởi phiên bản cũ (4 hoặc 5 cột).
             if (parts.Length < 4)
             {
                 return false;
@@ -174,7 +190,9 @@ namespace FileMonitorApps
                 EventType = eventType,
                 FileName = parts[2],
                 FullPath = parts[3],
-                OldFullPath = parts.Length > 4 ? parts[4] : string.Empty
+                OldFullPath = parts.Length > 4 ? parts[4] : string.Empty,
+                FileSize = parts.Length > 5 ? ParseSize(parts[5]) : null,
+                Note = parts.Length > 6 ? parts[6] : string.Empty
             };
 
             return true;
@@ -209,6 +227,22 @@ namespace FileMonitorApps
 
             eventType = parsed;
             return true;
+        }
+
+        /// <summary>
+        /// Đọc cột kích thước. Ô trống hoặc sai định dạng thì trả về null
+        /// (không coi cả dòng là hỏng: kích thước chỉ là thông tin phụ).
+        /// </summary>
+        private static long? ParseSize(string value)
+        {
+            long size;
+            if (!string.IsNullOrEmpty(value)
+                && long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out size))
+            {
+                return size;
+            }
+
+            return null;
         }
 
         /// <summary>

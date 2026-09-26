@@ -312,6 +312,23 @@ namespace FileMonitorApps
         }
 
         /// <summary>
+        /// Bổ sung kích thước tệp cho bản ghi trước khi phát sự kiện.
+        /// </summary>
+        /// <remarks>
+        /// FileSizeProbe tự bắt mọi ngoại lệ (tệp bị khóa, đã bị xóa, thiếu quyền...), nên
+        /// gọi ở đây không có nguy cơ làm chết luồng của FileSystemWatcher. Không đọc được
+        /// thì bản ghi vẫn được phát, chỉ thiếu kích thước kèm ghi chú lý do.
+        ///
+        /// Kích thước là giá trị TẠI THỜI ĐIỂM phát hiện: với sự kiện Created, phần mềm thường
+        /// tạo tệp rỗng trước rồi mới ghi nội dung, nên con số hay là 0 byte.
+        /// </remarks>
+        private static FileEventLog CreateEntry(FileEventLog entry)
+        {
+            FileSizeProbe.Fill(entry);
+            return entry;
+        }
+
+        /// <summary>
         /// Xử lý sự kiện tệp bị sửa đổi.
         /// </summary>
         /// <remarks>
@@ -330,7 +347,7 @@ namespace FileMonitorApps
                 return;
             }
 
-            OnFileEventDetected(FileEventLog.FromFileSystemEvent(e));
+            OnFileEventDetected(CreateEntry(FileEventLog.FromFileSystemEvent(e)));
         }
 
         /// <summary>
@@ -361,7 +378,7 @@ namespace FileMonitorApps
 
             debouncer.Remember(e.FullPath);
 
-            OnFileEventDetected(FileEventLog.FromFileSystemEvent(e));
+            OnFileEventDetected(CreateEntry(FileEventLog.FromFileSystemEvent(e)));
         }
 
         /// <summary>
@@ -423,7 +440,7 @@ namespace FileMonitorApps
             // Đường dẫn cũ không còn tồn tại nên bỏ khỏi lịch sử lọc trùng.
             debouncer.Forget(e.OldFullPath);
 
-            OnFileEventDetected(FileEventLog.FromRenamedEvent(e));
+            OnFileEventDetected(CreateEntry(FileEventLog.FromRenamedEvent(e)));
         }
 
         /// <summary>

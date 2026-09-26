@@ -906,7 +906,8 @@ namespace FileMonitorApps
                 writer.NewLine = "\r\n";
 
                 writer.WriteLine(CsvRow(separator,
-                    "Thời gian", "Loại sự kiện", "Tên tệp", "Đường dẫn", "Đường dẫn cũ"));
+                    "Thời gian", "Loại sự kiện", "Tên tệp", "Đường dẫn", "Đường dẫn cũ",
+                    "Kích thước (byte)", "Ghi chú"));
 
                 if (entries != null)
                 {
@@ -922,7 +923,11 @@ namespace FileMonitorApps
                             entry.EventType.ToString(),
                             entry.FileName,
                             entry.FullPath,
-                            entry.OldFullPath));
+                            entry.OldFullPath,
+                            entry.FileSize.HasValue
+                                ? entry.FileSize.Value.ToString(CultureInfo.InvariantCulture)
+                                : string.Empty,
+                            entry.Note));
                         count++;
                     }
                 }
