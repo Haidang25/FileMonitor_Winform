@@ -100,9 +100,14 @@ namespace FileMonitorApps
         {
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
 
+            // Hai bảng dùng chung một kiểu trình bày để giao diện đồng bộ.
+            ApplyGridStyle(dgvEvents);
+            ApplyGridStyle(dgvLogHistory);
+
             // Số canh phải để các kích thước thẳng hàng theo hàng đơn vị, dễ so sánh.
             colSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             colLogSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
             LoadFileFilters();
             UpdateEventCount();
             RefreshMonitoringState();
@@ -640,7 +645,34 @@ namespace FileMonitorApps
 
             displayedLogEntries = result;
             ShowLogEntries(result);
+            UpdateLogCount();
             UpdateButtonStates();
+        }
+
+        /// <summary>
+        /// Cập nhật nhãn ở chân tab Nhật ký: đang hiển thị bao nhiêu trên tổng số bản ghi
+        /// của khoảng ngày đang chọn.
+        /// </summary>
+        /// <remarks>
+        /// Ghi rõ cả hai con số để người dùng biết bộ lọc loại / từ khóa đang ẩn bớt bao nhiêu
+        /// dòng, thay vì tưởng nhật ký chỉ có chừng đó.
+        /// </remarks>
+        private void UpdateLogCount()
+        {
+            if (!logLoaded)
+            {
+                lblLogCount.Text = "Chưa tải nhật ký — bấm \"Tải log\" để xem.";
+                return;
+            }
+
+            string range = dtpFrom.Value.ToString("dd/MM/yyyy") + " – " + dtpTo.Value.ToString("dd/MM/yyyy");
+            int shown = displayedLogEntries.Count;
+            int total = logEntriesInRange.Count;
+
+            lblLogCount.Text = shown == total
+                ? "Có " + total.ToString("N0") + " bản ghi trong khoảng " + range
+                : "Đang hiển thị " + shown.ToString("N0") + " / " + total.ToString("N0") +
+                  " bản ghi trong khoảng " + range + " (đã lọc theo loại hoặc từ khóa)";
         }
 
         /// <summary>
@@ -1261,6 +1293,26 @@ namespace FileMonitorApps
             // Buộc phải bấm "Tải log" trước khi xóa, để người dùng nhìn thấy
             // mình sắp xóa cái gì. Xóa nhật ký là thao tác không hoàn tác được.
             btnClearLog.Enabled = logEntriesInRange.Count > 0;
+
+            StylePrimaryButton(btnStart);
+            StylePrimaryButton(btnLoadLog);
+        }
+
+        /// <summary>Màu nền của nút chính (Bắt đầu giám sát, Tải log).</summary>
+        private static readonly Color PrimaryButtonColor = Color.FromArgb(0, 120, 215);
+
+        /// <summary>
+        /// Tô màu nút chính theo trạng thái bật/tắt.
+        /// </summary>
+        /// <remarks>
+        /// Nút kiểu Flat giữ nguyên màu nền xanh khi bị tắt, chỉ làm mờ chữ, nên trông vẫn
+        /// như bấm được và chữ xám trên nền xanh rất khó đọc. Đổi hẳn sang nền xám khi tắt
+        /// để người dùng nhận ra ngay.
+        /// </remarks>
+        private static void StylePrimaryButton(Button button)
+        {
+            button.BackColor = button.Enabled ? PrimaryButtonColor : SystemColors.ControlLight;
+            button.ForeColor = button.Enabled ? Color.White : SystemColors.GrayText;
         }
 
         /// <summary>
@@ -1354,6 +1406,32 @@ namespace FileMonitorApps
             return unit == 0
                 ? bytes.ToString("N0") + " B"
                 : value.ToString("0.#") + " " + units[unit];
+        }
+
+        /// <summary>
+        /// Kiểu trình bày chung cho các bảng: tiêu đề in đậm, dòng cao vừa đủ, có khoảng đệm
+        /// hai bên chữ, chỉ kẻ đường ngang.
+        /// </summary>
+        /// <remarks>
+        /// Đặt bằng code thay vì trong Designer để hai bảng chắc chắn giống hệt nhau;
+        /// sau này muốn đổi kiểu chỉ cần sửa một chỗ.
+        /// </remarks>
+        private static void ApplyGridStyle(DataGridView grid)
+        {
+            // Tắt kiểu tiêu đề của hệ điều hành, nếu không màu nền và chữ đậm bên dưới bị bỏ qua.
+            grid.EnableHeadersVisualStyles = false;
+            grid.ColumnHeadersDefaultCellStyle.Font = new Font(grid.Font, FontStyle.Bold);
+            grid.ColumnHeadersDefaultCellStyle.BackColor = SystemColors.Control;
+            grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = SystemColors.Control;
+            grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(4, 0, 4, 0);
+            grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            grid.ColumnHeadersHeight = 28;
+
+            grid.RowTemplate.Height = 24;
+            grid.AllowUserToResizeRows = false;
+            grid.DefaultCellStyle.Padding = new Padding(4, 0, 4, 0);
+            grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            grid.GridColor = SystemColors.ControlLight;
         }
 
         /// <summary>

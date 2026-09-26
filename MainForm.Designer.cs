@@ -64,6 +64,7 @@
             this.btnExportLog = new System.Windows.Forms.Button();
             this.btnClearLog = new System.Windows.Forms.Button();
             this.dgvLogHistory = new System.Windows.Forms.DataGridView();
+            this.lblLogCount = new System.Windows.Forms.Label();
             this.colLogTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogType = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -125,9 +126,9 @@
             this.btnBrowse.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnBrowse.Location = new System.Drawing.Point(752, 17);
             this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(110, 27);
+            this.btnBrowse.Size = new System.Drawing.Size(105, 27);
             this.btnBrowse.TabIndex = 2;
-            this.btnBrowse.Text = "Chọn thư mục";
+            this.btnBrowse.Text = "Chọn &thư mục...";
             this.btnBrowse.UseVisualStyleBackColor = true;
             this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
             //
@@ -144,41 +145,41 @@
             // lblFolderPath
             //
             this.lblFolderPath.AutoSize = true;
-            this.lblFolderPath.Location = new System.Drawing.Point(16, 22);
+            this.lblFolderPath.Location = new System.Drawing.Point(19, 22);
             this.lblFolderPath.Name = "lblFolderPath";
             this.lblFolderPath.Size = new System.Drawing.Size(112, 17);
             this.lblFolderPath.TabIndex = 0;
-            this.lblFolderPath.Text = "Thư mục giám sát:";
+            this.lblFolderPath.Text = "Thư mục &giám sát:";
             //
             // chkIncludeSubdirs
             //
             this.chkIncludeSubdirs.AutoSize = true;
             this.chkIncludeSubdirs.Checked = true;
             this.chkIncludeSubdirs.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkIncludeSubdirs.Location = new System.Drawing.Point(19, 62);
+            this.chkIncludeSubdirs.Location = new System.Drawing.Point(390, 61);
             this.chkIncludeSubdirs.Name = "chkIncludeSubdirs";
             this.chkIncludeSubdirs.Size = new System.Drawing.Size(151, 21);
-            this.chkIncludeSubdirs.TabIndex = 3;
-            this.chkIncludeSubdirs.Text = "Bao gồm thư mục con";
+            this.chkIncludeSubdirs.TabIndex = 5;
+            this.chkIncludeSubdirs.Text = "Bao gồm thư mục &con";
             this.chkIncludeSubdirs.UseVisualStyleBackColor = true;
             //
             // lblFilter
             //
             this.lblFilter.AutoSize = true;
-            this.lblFilter.Location = new System.Drawing.Point(260, 63);
+            this.lblFilter.Location = new System.Drawing.Point(19, 63);
             this.lblFilter.Name = "lblFilter";
             this.lblFilter.Size = new System.Drawing.Size(114, 17);
-            this.lblFilter.TabIndex = 4;
-            this.lblFilter.Text = "Lọc phần mở rộng:";
+            this.lblFilter.TabIndex = 3;
+            this.lblFilter.Text = "&Lọc phần mở rộng:";
             //
             // cboFileFilter
             //
             this.cboFileFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboFileFilter.FormattingEnabled = true;
-            this.cboFileFilter.Location = new System.Drawing.Point(390, 59);
+            this.cboFileFilter.Location = new System.Drawing.Point(140, 59);
             this.cboFileFilter.Name = "cboFileFilter";
             this.cboFileFilter.Size = new System.Drawing.Size(230, 25);
-            this.cboFileFilter.TabIndex = 5;
+            this.cboFileFilter.TabIndex = 4;
             //
             // btnStart
             //
@@ -190,18 +191,18 @@
             this.btnStart.Name = "btnStart";
             this.btnStart.Size = new System.Drawing.Size(170, 34);
             this.btnStart.TabIndex = 6;
-            this.btnStart.Text = "Bắt đầu giám sát";
+            this.btnStart.Text = "&Bắt đầu giám sát";
             this.btnStart.UseVisualStyleBackColor = false;
             this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
             //
             // btnStop
             //
             this.btnStop.Enabled = false;
-            this.btnStop.Location = new System.Drawing.Point(205, 100);
+            this.btnStop.Location = new System.Drawing.Point(201, 100);
             this.btnStop.Name = "btnStop";
             this.btnStop.Size = new System.Drawing.Size(170, 34);
             this.btnStop.TabIndex = 7;
-            this.btnStop.Text = "Dừng giám sát";
+            this.btnStop.Text = "&Dừng giám sát";
             this.btnStop.UseVisualStyleBackColor = true;
             this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
             //
@@ -213,7 +214,7 @@
             this.btnClearView.Name = "btnClearView";
             this.btnClearView.Size = new System.Drawing.Size(170, 30);
             this.btnClearView.TabIndex = 11;
-            this.btnClearView.Text = "Xóa danh sách";
+            this.btnClearView.Text = "&Xóa danh sách";
             this.btnClearView.UseVisualStyleBackColor = true;
             this.ttpMain.SetToolTip(this.btnClearView, "Chỉ xóa danh sách đang hiển thị." +
                 " Nhật ký đã ghi trong tệp vẫn còn nguyên, xem lại ở tab Nhật ký.");
@@ -223,9 +224,10 @@
             //
             this.lblStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.lblStatus.AutoEllipsis = true;
-            this.lblStatus.Location = new System.Drawing.Point(657, 105);
+            this.lblStatus.Location = new System.Drawing.Point(557, 105);
             this.lblStatus.Name = "lblStatus";
-            this.lblStatus.Size = new System.Drawing.Size(200, 24);
+            this.lblStatus.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblStatus.Size = new System.Drawing.Size(300, 24);
             this.lblStatus.TabIndex = 8;
             this.lblStatus.Text = "● Chưa giám sát";
             this.lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -299,16 +301,29 @@
             this.lblEventCount.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.lblEventCount.AutoEllipsis = true;
-            this.lblEventCount.Location = new System.Drawing.Point(19, 487);
+            this.lblEventCount.Location = new System.Drawing.Point(19, 485);
             this.lblEventCount.Name = "lblEventCount";
             this.lblEventCount.Size = new System.Drawing.Size(650, 22);
             this.lblEventCount.TabIndex = 10;
             this.lblEventCount.Text = "Tổng 0";
             this.lblEventCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             //
+            // lblLogCount
+            //
+            this.lblLogCount.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblLogCount.AutoEllipsis = true;
+            this.lblLogCount.Location = new System.Drawing.Point(19, 485);
+            this.lblLogCount.Name = "lblLogCount";
+            this.lblLogCount.Size = new System.Drawing.Size(838, 22);
+            this.lblLogCount.TabIndex = 10;
+            this.lblLogCount.Text = "Chưa tải nhật ký";
+            this.lblLogCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            //
             // tabLog
             //
             this.tabLog.BackColor = System.Drawing.SystemColors.Control;
+            this.tabLog.Controls.Add(this.lblLogCount);
             this.tabLog.Controls.Add(this.dgvLogHistory);
             this.tabLog.Controls.Add(this.cboEventTypeFilter);
             this.tabLog.Controls.Add(this.txtSearch);
@@ -333,7 +348,7 @@
             this.txtSearch.Location = new System.Drawing.Point(19, 19);
             this.txtSearch.Name = "txtSearch";
             this.txtSearch.Size = new System.Drawing.Size(620, 23);
-            this.txtSearch.TabIndex = 10;
+            this.txtSearch.TabIndex = 0;
             this.txtSearch.TextChanged += new System.EventHandler(this.txtSearch_TextChanged);
             //
             // cboEventTypeFilter
@@ -344,7 +359,7 @@
             this.cboEventTypeFilter.Location = new System.Drawing.Point(655, 18);
             this.cboEventTypeFilter.Name = "cboEventTypeFilter";
             this.cboEventTypeFilter.Size = new System.Drawing.Size(202, 25);
-            this.cboEventTypeFilter.TabIndex = 11;
+            this.cboEventTypeFilter.TabIndex = 1;
             this.cboEventTypeFilter.SelectedIndexChanged += new System.EventHandler(this.cboEventTypeFilter_SelectedIndexChanged);
             //
             // lblFrom
@@ -353,8 +368,8 @@
             this.lblFrom.Location = new System.Drawing.Point(19, 63);
             this.lblFrom.Name = "lblFrom";
             this.lblFrom.Size = new System.Drawing.Size(56, 17);
-            this.lblFrom.TabIndex = 20;
-            this.lblFrom.Text = "Từ ngày:";
+            this.lblFrom.TabIndex = 2;
+            this.lblFrom.Text = "&Từ ngày:";
             //
             // dtpFrom
             //
@@ -362,25 +377,25 @@
             this.dtpFrom.Location = new System.Drawing.Point(85, 59);
             this.dtpFrom.Name = "dtpFrom";
             this.dtpFrom.Size = new System.Drawing.Size(150, 25);
-            this.dtpFrom.TabIndex = 21;
+            this.dtpFrom.TabIndex = 3;
             this.dtpFrom.ValueChanged += new System.EventHandler(this.dtpFrom_ValueChanged);
             //
             // lblTo
             //
             this.lblTo.AutoSize = true;
-            this.lblTo.Location = new System.Drawing.Point(255, 63);
+            this.lblTo.Location = new System.Drawing.Point(259, 63);
             this.lblTo.Name = "lblTo";
             this.lblTo.Size = new System.Drawing.Size(65, 17);
-            this.lblTo.TabIndex = 22;
-            this.lblTo.Text = "Đến ngày:";
+            this.lblTo.TabIndex = 4;
+            this.lblTo.Text = "Đế&n ngày:";
             //
             // dtpTo
             //
             this.dtpTo.Format = System.Windows.Forms.DateTimePickerFormat.Short;
-            this.dtpTo.Location = new System.Drawing.Point(330, 59);
+            this.dtpTo.Location = new System.Drawing.Point(334, 59);
             this.dtpTo.Name = "dtpTo";
             this.dtpTo.Size = new System.Drawing.Size(150, 25);
-            this.dtpTo.TabIndex = 23;
+            this.dtpTo.TabIndex = 5;
             this.dtpTo.ValueChanged += new System.EventHandler(this.dtpTo_ValueChanged);
             //
             // btnLoadLog
@@ -392,28 +407,28 @@
             this.btnLoadLog.Location = new System.Drawing.Point(19, 100);
             this.btnLoadLog.Name = "btnLoadLog";
             this.btnLoadLog.Size = new System.Drawing.Size(120, 34);
-            this.btnLoadLog.TabIndex = 0;
-            this.btnLoadLog.Text = "Tải log";
+            this.btnLoadLog.TabIndex = 6;
+            this.btnLoadLog.Text = "Tải &log";
             this.btnLoadLog.UseVisualStyleBackColor = false;
             this.btnLoadLog.Click += new System.EventHandler(this.btnLoadLog_Click);
             //
             // btnExportLog
             //
-            this.btnExportLog.Location = new System.Drawing.Point(155, 100);
+            this.btnExportLog.Location = new System.Drawing.Point(151, 100);
             this.btnExportLog.Name = "btnExportLog";
             this.btnExportLog.Size = new System.Drawing.Size(120, 34);
-            this.btnExportLog.TabIndex = 1;
-            this.btnExportLog.Text = "Xuất log";
+            this.btnExportLog.TabIndex = 7;
+            this.btnExportLog.Text = "&Xuất log...";
             this.btnExportLog.UseVisualStyleBackColor = true;
             this.btnExportLog.Click += new System.EventHandler(this.btnExportLog_Click);
             //
             // btnClearLog
             //
-            this.btnClearLog.Location = new System.Drawing.Point(291, 100);
+            this.btnClearLog.Location = new System.Drawing.Point(283, 100);
             this.btnClearLog.Name = "btnClearLog";
             this.btnClearLog.Size = new System.Drawing.Size(120, 34);
-            this.btnClearLog.TabIndex = 2;
-            this.btnClearLog.Text = "Xóa log";
+            this.btnClearLog.TabIndex = 8;
+            this.btnClearLog.Text = "Xó&a log...";
             this.btnClearLog.UseVisualStyleBackColor = true;
             this.btnClearLog.Click += new System.EventHandler(this.btnClearLog_Click);
             //
@@ -441,8 +456,8 @@
             this.dgvLogHistory.MinimumSize = new System.Drawing.Size(400, 120);
             this.dgvLogHistory.RowHeadersVisible = false;
             this.dgvLogHistory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvLogHistory.Size = new System.Drawing.Size(838, 366);
-            this.dgvLogHistory.TabIndex = 3;
+            this.dgvLogHistory.Size = new System.Drawing.Size(838, 330);
+            this.dgvLogHistory.TabIndex = 9;
             //
             // colLogTime
             //
@@ -540,6 +555,7 @@
         private System.Windows.Forms.Button btnExportLog;
         private System.Windows.Forms.Button btnClearLog;
         private System.Windows.Forms.DataGridView dgvLogHistory;
+        private System.Windows.Forms.Label lblLogCount;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogTime;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogType;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
