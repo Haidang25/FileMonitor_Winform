@@ -101,20 +101,122 @@ namespace FileMonitorApps
             LastReadError = string.Empty;
             LastReadSkippedLines = 0;
 
-            // KHÔNG tạo thư mục ở đây. Thư mục chỉ được tạo lúc ghi bản ghi đầu tiên
-            // (xem EnsureFolderExists), vì hai lẽ:
-            // - Chỉ mở chương trình rồi tắt thì không để lại thư mục rỗng nào.
-            // - Constructor chạy ngay khi tạo MainForm; nếu tạo thư mục ở đây mà thiếu
-            //   quyền ghi thì chương trình không mở lên được, dù người dùng chỉ muốn xem.
+            // KHÔNG tạo thư mục ở đây: constructor chạy ngay khi tạo MainForm, nếu tạo thư mục
+            // mà thiếu quyền ghi thì chương trình không mở lên được, dù người dùng chỉ muốn xem.
+            // Thư mục được tạo lúc ghi bản ghi đầu tiên (xem EnsureFolderExists).
+            // Riêng constructor mặc định thì GetDefaultLogFolder đã thử tạo thư mục để kiểm tra
+            // quyền ghi, và mọi lỗi ở bước đó đều đã được bắt lại.
+        }
+
+        /// <summary>Tên thư mục con trong %LocalAppData% khi phải dùng thư mục dự phòng.</summary>
+        public const string FallbackAppFolderName = "FileMonitorApps";
+
+        /// <summary>
+        /// Thư mục mặc định: &lt;thư mục chương trình&gt;\Logs nếu ghi được, nếu không thì
+        /// %LocalAppData%\FileMonitorApps\Logs.
+        /// </summary>
+        /// <remarks>
+        /// Dùng AppDomain.CurrentDomain.BaseDirectory, KHÔNG dùng Application.StartupPath
+        /// (để không phụ thuộc WinForms).
+        ///
+        /// Vì sao cần thư mục dự phòng: nếu chương trình được chép vào C:\Program Files, tài
+        /// khoản thường KHÔNG có quyền ghi vào đó (UnauthorizedAccessException). Khi ấy mọi
+        /// sự kiện đều không lưu được. %LocalAppData% là nơi Windows dành riêng cho dữ liệu
+        /// của từng người dùng, luôn ghi được mà không cần quyền Administrator.
+        /// </remarks>
+        public static string GetDefaultLogFolder()
+        {
+            string preferred = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultFolderName);
+
+            string fallback;
+            try
+            {
+                fallback = Path.Combine(
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        FallbackAppFolderName),
+                    DefaultFolderName);
+            }
+            catch (Exception)
+            {
+                return preferred;
+            }
+
+            return ChooseWritableFolder(preferred, fallback);
         }
 
         /// <summary>
-        /// Thư mục mặc định. Dùng AppDomain.CurrentDomain.BaseDirectory,
-        /// KHÔNG dùng Application.StartupPath (để không phụ thuộc WinForms).
+        /// Trả về preferred nếu ghi được vào đó, ngược lại trả về fallback.
         /// </summary>
-        public static string GetDefaultLogFolder()
+        /// <remarks>
+        /// Nếu cả hai đều không ghi được thì vẫn trả về preferred: người dùng dễ tìm thấy
+        /// thư mục cạnh chương trình hơn, và lỗi ghi sẽ được báo trên nhãn trạng thái.
+        /// </remarks>
+        internal static string ChooseWritableFolder(string preferred, string fallback)
         {
-            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultFolderName);
+            if (CanWriteTo(preferred))
+            {
+                return preferred;
+            }
+
+            if (!string.IsNullOrEmpty(fallback) && CanWriteTo(fallback))
+            {
+                return fallback;
+            }
+
+            return preferred;
+        }
+
+        /// <summary>
+        /// Thử tạo thư mục (nếu chưa có) và một tệp tạm trong đó để biết có quyền ghi không.
+        /// </summary>
+        /// <remarks>
+        /// Cách chắc chắn duy nhất để biết có ghi được hay không là THỬ GHI. Đọc danh sách quyền
+        /// (ACL) của thư mục vừa phức tạp vừa không phản ánh hết các trường hợp (thư mục chỉ đọc,
+        /// ổ đĩa bị khóa ghi, phần mềm bảo vệ chặn...).
+        /// FileOptions.DeleteOnClose: tệp thử tự biến mất khi đóng, không để lại rác.
+        ///
+        /// Nếu thư mục chưa có mà tạo ra được thì giữ lại luôn: đằng nào cũng sắp ghi vào đó.
+        /// </remarks>
+        internal static bool CanWriteTo(string folder)
+        {
+            if (string.IsNullOrEmpty(folder))
+            {
+                return false;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+
+                string probe = Path.Combine(folder, ".ghi-thu-" + Guid.NewGuid().ToString("N") + ".tmp");
+                using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                    1, FileOptions.DeleteOnClose))
+                {
+                }
+
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (NotSupportedException)
+            {
+                return false;
+            }
+            catch (System.Security.SecurityException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
 
         #endregion

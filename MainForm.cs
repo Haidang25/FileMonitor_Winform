@@ -889,6 +889,7 @@ namespace FileMonitorApps
 
                 MessageBox.Show(this,
                     "Không thể bắt đầu giám sát thư mục:" + Environment.NewLine + folderPath +
+                    Environment.NewLine + Environment.NewLine + DescribeStartError(ex) +
                     Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
                     "Lỗi",
                     MessageBoxButtons.OK,
@@ -1207,13 +1208,84 @@ namespace FileMonitorApps
 
             MessageBox.Show(this,
                 "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
-                Environment.NewLine +
-                "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa, bị đổi tên, " +
-                "hoặc nằm trên ổ đĩa mạng đã ngắt kết nối." + Environment.NewLine +
-                Environment.NewLine + "Chi tiết: " + (error != null ? error.Message : "không rõ"),
+                Environment.NewLine + DescribeWatchError(error, txtFolderPath.Text) +
+                Environment.NewLine + Environment.NewLine +
+                "Chi tiết: " + (error != null ? error.Message : "không rõ"),
                 "Lỗi giám sát",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Giải thích nguyên nhân khi không bắt đầu giám sát được.
+        /// </summary>
+        /// <remarks>
+        /// FolderValidator đã thử đọc thư mục trước đó, nên tới được đây thường là do quyền
+        /// thay đổi ngay giữa lúc kiểm tra và lúc bắt đầu, hoặc thư mục đọc được nhưng Windows
+        /// không cho THEO DÕI (ReadDirectoryChangesW cần quyền riêng).
+        ///
+        /// Lưu ý: khi thiếu quyền, FileSystemWatcher của .NET Framework KHÔNG ném
+        /// UnauthorizedAccessException mà ném FileNotFoundException với câu "Error reading
+        /// the directory", nên phải xét cả trường hợp thư mục vẫn tồn tại.
+        /// DirectoryNotFoundException/FileNotFoundException là lớp con của IOException,
+        /// nên được xét trước.
+        /// </remarks>
+        private string DescribeStartError(Exception ex)
+        {
+            if (ex is UnauthorizedAccessException)
+            {
+                return "Tài khoản hiện tại không đủ quyền theo dõi thư mục này. " +
+                    "Hãy chọn thư mục khác, hoặc chạy chương trình bằng quyền Administrator.";
+            }
+
+            if (ex is DirectoryNotFoundException)
+            {
+                return "Thư mục vừa bị xóa, đổi tên hoặc di chuyển.";
+            }
+
+            if (ex is FileNotFoundException || ex is IOException)
+            {
+                string folder = txtFolderPath.Text.Trim();
+                if (folder.Length > 0 && Directory.Exists(folder))
+                {
+                    return "Windows không cho phép theo dõi thư mục này. Nguyên nhân thường gặp: " +
+                        "tài khoản không đủ quyền, hoặc thư mục nằm trên ổ không hỗ trợ theo dõi thay đổi.";
+                }
+
+                return "Thư mục vừa bị xóa, đổi tên hoặc di chuyển.";
+            }
+
+            return "Đã xảy ra lỗi ngoài dự kiến.";
+        }
+
+        /// <summary>
+        /// Giải thích nguyên nhân khi việc giám sát đang chạy bị dừng giữa chừng.
+        /// </summary>
+        /// <remarks>
+        /// Khi quyền truy cập bị thu hồi lúc đang giám sát, sự kiện Error của FileSystemWatcher
+        /// mang theo Win32Exception mã 5 (ERROR_ACCESS_DENIED) chứ không phải
+        /// UnauthorizedAccessException, nên phải nhận ra cả hai dạng.
+        /// </remarks>
+        private static string DescribeWatchError(Exception error, string folderPath)
+        {
+            System.ComponentModel.Win32Exception win32 = error as System.ComponentModel.Win32Exception;
+            const int ErrorAccessDenied = 5;
+
+            if (error is UnauthorizedAccessException
+                || (win32 != null && win32.NativeErrorCode == ErrorAccessDenied))
+            {
+                return "Tài khoản hiện tại không còn quyền truy cập thư mục đang giám sát " +
+                    "(quyền vừa bị thay đổi, hoặc thư mục bị khóa bởi phần mềm bảo mật).";
+            }
+
+            string folder = (folderPath ?? string.Empty).Trim();
+            if (folder.Length > 0 && !Directory.Exists(folder))
+            {
+                return "Thư mục đang giám sát đã bị xóa, đổi tên hoặc di chuyển.";
+            }
+
+            return "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa, bị đổi tên, " +
+                "hoặc nằm trên ổ đĩa mạng đã ngắt kết nối.";
         }
 
         /// <summary>
