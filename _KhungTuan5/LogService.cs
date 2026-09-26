@@ -82,9 +82,20 @@ namespace FileMonitorApps
         /// <exception cref="ArgumentException">Đường dẫn rỗng.</exception>
         public LogService(string logFolder)
         {
-            // TODO (bước 1): kiểm tra logFolder rỗng → ném ArgumentException (giống bản cũ)
-            // TODO (bước 1): gán LogFolder, LastWriteError = string.Empty
-            throw new NotImplementedException();
+            if (string.IsNullOrEmpty(logFolder) || logFolder.Trim().Length == 0)
+            {
+                throw new ArgumentException("Chưa chỉ định thư mục chứa nhật ký.", "logFolder");
+            }
+
+            LogFolder = logFolder;
+            LastWriteError = string.Empty;
+            WriteFailureCount = 0;
+
+            // KHÔNG tạo thư mục ở đây. Thư mục chỉ được tạo lúc ghi bản ghi đầu tiên
+            // (xem EnsureFolderExists), vì hai lẽ:
+            // - Chỉ mở chương trình rồi tắt thì không để lại thư mục rỗng nào.
+            // - Constructor chạy ngay khi tạo MainForm; nếu tạo thư mục ở đây mà thiếu
+            //   quyền ghi thì chương trình không mở lên được, dù người dùng chỉ muốn xem.
         }
 
         /// <summary>
@@ -93,8 +104,7 @@ namespace FileMonitorApps
         /// </summary>
         public static string GetDefaultLogFolder()
         {
-            // TODO (bước 1): Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultFolderName)
-            throw new NotImplementedException();
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultFolderName);
         }
 
         #endregion
@@ -106,9 +116,13 @@ namespace FileMonitorApps
         /// </summary>
         public string GetLogFilePath(DateTime day)
         {
-            // TODO (bước 2): ghép FilePrefix + day.ToString(FileDateFormat, InvariantCulture) + FileExtension
-            //   rồi Path.Combine với LogFolder
-            throw new NotImplementedException();
+            // InvariantCulture: tên tệp không phụ thuộc cài đặt ngôn ngữ của máy
+            // (có lịch như lịch Phật giáo Thái sẽ ra năm 2569 thay vì 2026).
+            string fileName = FilePrefix
+                + day.ToString(FileDateFormat, CultureInfo.InvariantCulture)
+                + FileExtension;
+
+            return Path.Combine(LogFolder, fileName);
         }
 
         /// <summary>
@@ -117,11 +131,26 @@ namespace FileMonitorApps
         /// </summary>
         private static bool TryParseDayFromFileName(string filePath, out DateTime day)
         {
-            // TODO (bước 2):
-            //   - name = Path.GetFileNameWithoutExtension(filePath)
-            //   - kiểm tra name bắt đầu bằng FilePrefix
-            //   - phần còn lại đưa vào DateTime.TryParseExact(..., FileDateFormat, InvariantCulture, ...)
-            throw new NotImplementedException();
+            day = DateTime.MinValue;
+
+            if (string.IsNullOrEmpty(filePath))
+            {
+                return false;
+            }
+
+            string name = Path.GetFileNameWithoutExtension(filePath);
+
+            if (!name.StartsWith(FilePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            string datePart = name.Substring(FilePrefix.Length);
+
+            // TryParseExact với đúng định dạng: "filemonitor-backup.log" hay
+            // "filemonitor-2026.log" đều bị loại, không bị hiểu nhầm thành một ngày.
+            return DateTime.TryParseExact(datePart, FileDateFormat, CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out day);
         }
 
         /// <summary>
@@ -132,12 +161,27 @@ namespace FileMonitorApps
         /// </remarks>
         public List<DateTime> GetAvailableDays()
         {
-            // TODO (bước 3):
-            //   - thư mục chưa có → trả về danh sách rỗng
-            //   - Directory.GetFiles(LogFolder, FilePrefix + "*" + FileExtension)
-            //   - mỗi tệp gọi TryParseDayFromFileName, đúng mẫu thì thêm vào danh sách
-            //   - Sort() trước khi trả về
-            throw new NotImplementedException();
+            List<DateTime> days = new List<DateTime>();
+
+            if (!Directory.Exists(LogFolder))
+            {
+                return days;
+            }
+
+            string[] files = Directory.GetFiles(LogFolder, FilePrefix + "*" + FileExtension);
+
+            foreach (string file in files)
+            {
+                DateTime day;
+                if (TryParseDayFromFileName(file, out day))
+                {
+                    days.Add(day);
+                }
+            }
+
+            // Directory.GetFiles không cam kết thứ tự trả về nên phải tự sắp xếp.
+            days.Sort();
+            return days;
         }
 
         #endregion
@@ -155,16 +199,41 @@ namespace FileMonitorApps
         /// <returns>true nếu ghi thành công; false nếu lỗi, xem LastWriteError.</returns>
         public bool TryAppend(FileEventLog entry)
         {
-            // TODO (bước 4):
-            //   - entry == null → return false
-            //   - lock (fileLock):
-            //       EnsureFolderExists();
-            //       using StreamWriter(GetLogFilePath(entry.Time), true, new UTF8Encoding(false))
-            //           writer.WriteLine(entry.ToLogLine());
-            //   - catch IOException / UnauthorizedAccessException:
-            //       RecordWriteFailure(ex); return false;
-            //   Chỉ bắt hai loại ngoại lệ này — lỗi khác là lỗi lập trình, để nó nổi lên.
-            throw new NotImplementedException();
+            if (entry == null)
+            {
+                return false;
+            }
+
+            lock (fileLock)
+            {
+                try
+                {
+                    EnsureFolderExists();
+
+                    // append = true: tệp chưa có thì StreamWriter tự tạo, có rồi thì ghi nối
+                    // vào cuối. Vì vậy sang ngày mới là tự sinh tệp mới, không cần code riêng.
+                    // UTF8Encoding(false): không ghi BOM, tránh BOM lặp lại giữa tệp.
+                    using (StreamWriter writer = new StreamWriter(
+                        GetLogFilePath(entry.Time), true, new UTF8Encoding(false)))
+                    {
+                        writer.WriteLine(entry.ToLogLine());
+                    }
+
+                    return true;
+                }
+                catch (IOException ex)
+                {
+                    // Đĩa đầy, tệp đang bị chương trình khác khóa...
+                    RecordWriteFailure(ex);
+                    return false;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    // Chương trình đặt trong thư mục không có quyền ghi, ví dụ Program Files.
+                    RecordWriteFailure(ex);
+                    return false;
+                }
+            }
         }
 
         /// <summary>
@@ -172,8 +241,8 @@ namespace FileMonitorApps
         /// </summary>
         private void RecordWriteFailure(Exception ex)
         {
-            // TODO (bước 4): WriteFailureCount++; LastWriteError = ex.Message;
-            throw new NotImplementedException();
+            WriteFailureCount++;
+            LastWriteError = ex != null ? ex.Message : string.Empty;
         }
 
         /// <summary>
@@ -181,8 +250,14 @@ namespace FileMonitorApps
         /// </summary>
         private void EnsureFolderExists()
         {
-            // TODO (bước 4): if (!Directory.Exists(LogFolder)) Directory.CreateDirectory(LogFolder);
-            throw new NotImplementedException();
+            // Kiểm tra lại ở MỖI lần ghi chứ không chỉ lần đầu: người dùng có thể xóa
+            // thư mục Logs trong lúc chương trình đang chạy.
+            // CreateDirectory tạo luôn các thư mục cha còn thiếu, và không báo lỗi
+            // nếu thư mục đã tồn tại; câu if chỉ để tránh một lời gọi hệ thống thừa.
+            if (!Directory.Exists(LogFolder))
+            {
+                Directory.CreateDirectory(LogFolder);
+            }
         }
 
         #endregion
