@@ -11,7 +11,7 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5).
+    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5 và bước 8).
     /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
     ///
     /// Thay đổi so với bản LogService hiện tại:
@@ -605,17 +605,88 @@ namespace FileMonitorApps
 
         #region Xuất và xóa
 
+        /// <summary>Dấu phân cách cột mặc định của tệp CSV.</summary>
+        public const char DefaultCsvSeparator = ',';
+
         /// <summary>
-        /// Xuất danh sách ra tệp CSV để mở bằng Excel.
+        /// Xuất danh sách ra tệp CSV, dùng dấu phẩy làm dấu phân cách.
         /// </summary>
+        /// <returns>Số bản ghi đã xuất.</returns>
         /// <exception cref="ArgumentException">Đường dẫn đích rỗng.</exception>
-        public void ExportCsv(string destinationPath, IList<FileEventLog> entries)
+        public int ExportCsv(string destinationPath, IList<FileEventLog> entries)
         {
-            // TODO (bước 8): chép lại gần như nguyên bản cũ:
-            //   - dòng tiêu đề "Thời gian,Loại sự kiện,Tên tệp,Đường dẫn,Đường dẫn cũ"
-            //   - mỗi ô bọc qua CsvField
-            //   - File.WriteAllText(..., new UTF8Encoding(true))  // có BOM cho Excel
-            throw new NotImplementedException();
+            return ExportCsv(destinationPath, entries, DefaultCsvSeparator);
+        }
+
+        /// <summary>
+        /// Xuất danh sách ra tệp CSV để mở bằng Excel, với dấu phân cách tùy chọn.
+        /// </summary>
+        /// <param name="destinationPath">Đường dẫn tệp CSV cần tạo (ghi đè nếu đã có).</param>
+        /// <param name="entries">Danh sách bản ghi cần xuất.</param>
+        /// <param name="separator">Dấu phân cách cột, thường là ',' hoặc ';'.</param>
+        /// <returns>Số bản ghi đã xuất.</returns>
+        /// <remarks>
+        /// Vì sao cho chọn dấu phân cách: khi mở tệp CSV bằng cách nhấp đúp, Excel dùng
+        /// "List separator" trong cài đặt vùng của Windows. Máy đặt vùng Việt Nam dùng dấu
+        /// phẩy làm dấu thập phân nên List separator là dấu chấm phẩy — gặp tệp phân cách
+        /// bằng dấu phẩy, Excel dồn cả dòng vào một cột. Giao diện có thể truyền vào
+        /// CultureInfo.CurrentCulture.TextInfo.ListSeparator để khớp với máy người dùng.
+        ///
+        /// Không dùng dòng "sep=;" ở đầu tệp: Excel hiểu dòng đó nhưng khi gặp nó lại bỏ
+        /// qua BOM, làm tiếng Việt bị lỗi font.
+        ///
+        /// Tệp được ghi kèm BOM (UTF8Encoding(true)): thiếu BOM, Excel đọc tệp theo bảng mã
+        /// ANSI và tiếng Việt hiện thành ký tự lạ. Dòng kết thúc bằng CRLF theo RFC 4180.
+        ///
+        /// Không cần giữ fileLock: hàm chỉ làm việc với danh sách trong bộ nhớ và một
+        /// tệp đích do người dùng chọn, không đụng tới tệp nhật ký.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// Đường dẫn đích rỗng, hoặc dấu phân cách là nháy kép / ký tự xuống dòng.
+        /// </exception>
+        public int ExportCsv(string destinationPath, IList<FileEventLog> entries, char separator)
+        {
+            if (string.IsNullOrEmpty(destinationPath) || destinationPath.Trim().Length == 0)
+            {
+                throw new ArgumentException("Chưa chỉ định tệp CSV cần tạo.", "destinationPath");
+            }
+
+            if (separator == '"' || separator == '\r' || separator == '\n')
+            {
+                throw new ArgumentException("Dấu phân cách không hợp lệ.", "separator");
+            }
+
+            int count = 0;
+
+            using (StreamWriter writer = new StreamWriter(destinationPath, false, new UTF8Encoding(true)))
+            {
+                // Tự đặt ký tự xuống dòng, không phụ thuộc Environment.NewLine của hệ điều hành.
+                writer.NewLine = "\r\n";
+
+                writer.WriteLine(CsvRow(separator,
+                    "Thời gian", "Loại sự kiện", "Tên tệp", "Đường dẫn", "Đường dẫn cũ"));
+
+                if (entries != null)
+                {
+                    foreach (FileEventLog entry in entries)
+                    {
+                        if (entry == null)
+                        {
+                            continue;
+                        }
+
+                        writer.WriteLine(CsvRow(separator,
+                            entry.Time.ToString(FileEventLog.TimeFormat, CultureInfo.InvariantCulture),
+                            entry.EventType.ToString(),
+                            entry.FileName,
+                            entry.FullPath,
+                            entry.OldFullPath));
+                        count++;
+                    }
+                }
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -635,12 +706,79 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Bọc một ô theo quy tắc CSV: đặt trong nháy kép, nháy kép bên trong nhân đôi.
+        /// Ghép các ô thành một dòng CSV, mỗi ô đã được xử lý qua CsvField.
         /// </summary>
-        private static string CsvField(string value)
+        private static string CsvRow(char separator, params string[] values)
         {
-            // TODO (bước 8): chép từ bản cũ
-            throw new NotImplementedException();
+            StringBuilder builder = new StringBuilder();
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(separator);
+                }
+
+                builder.Append(CsvField(values[i], separator));
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Xử lý một ô theo quy tắc CSV (RFC 4180) để ký tự đặc biệt không làm lệch cột.
+        /// </summary>
+        /// <remarks>
+        /// Tên tệp và thư mục trên Windows được phép chứa dấu phẩy, dấu chấm phẩy và
+        /// dấu nháy đơn, ví dụ D:\Báo cáo, quý 3\bản cuối.txt. Ghi thẳng ra thì dấu phẩy
+        /// đó bị hiểu là ranh giới cột, cả dòng bị lệch sang phải.
+        ///
+        /// Quy tắc áp dụng:
+        /// 1. Ô chứa dấu phân cách, nháy kép, CR hoặc LF → bọc trong nháy kép.
+        /// 2. Nháy kép bên trong ô → nhân đôi ("" ). Windows cấm nháy kép trong tên tệp,
+        ///    nhưng vẫn xử lý vì hàm này không nên phụ thuộc vào giả định đó.
+        /// 3. Ô bắt đầu bằng = + - @ (hoặc TAB, CR) → thêm dấu nháy đơn ở đầu.
+        ///    Đây là chống "CSV injection": Excel coi ô như vậy là CÔNG THỨC và thực thi nó.
+        ///    Một tệp tên "=HYPERLINK(...).txt" là tên hợp lệ trên Windows; không chặn thì chỉ
+        ///    cần mở tệp CSV xuất ra là Excel chạy công thức do người khác đặt vào tên tệp.
+        ///    Với công cụ giám sát thì tên tệp là dữ liệu do BẤT KỲ AI tạo ra, nên phải coi
+        ///    là không tin cậy.
+        ///    Đánh đổi: tệp tên "-nhap.txt" sẽ hiện là "'-nhap.txt" trong Excel.
+        ///
+        /// Ô không có gì đặc biệt thì giữ nguyên, không bọc nháy kép, cho tệp gọn và dễ đọc
+        /// bằng Notepad.
+        /// </remarks>
+        internal static string CsvField(string value, char separator)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            if (IsFormulaTrigger(value[0]))
+            {
+                value = "'" + value;
+            }
+
+            bool mustQuote = value.IndexOf(separator) >= 0
+                          || value.IndexOf('"') >= 0
+                          || value.IndexOf('\r') >= 0
+                          || value.IndexOf('\n') >= 0;
+
+            if (!mustQuote)
+            {
+                return value;
+            }
+
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        /// <summary>
+        /// Ký tự đầu ô khiến Excel / LibreOffice hiểu ô là công thức.
+        /// </summary>
+        private static bool IsFormulaTrigger(char c)
+        {
+            return c == '=' || c == '+' || c == '-' || c == '@' || c == '\t' || c == '\r';
         }
 
         #endregion
