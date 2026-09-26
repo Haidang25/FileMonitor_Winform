@@ -160,7 +160,7 @@ namespace FileMonitorApps
 
                     // Người dùng vẫn có thể chọn thư mục mà tài khoản hiện tại không đọc được
                     // (ví dụ C:\\System Volume Information), nên phải kiểm tra trước khi nhận.
-                    if (TryValidateFolder(folderBrowserDialog.SelectedPath, out normalizedPath))
+                    if (TryValidateFolder(folderBrowserDialog.SelectedPath, false, out normalizedPath))
                     {
                         txtFolderPath.Text = normalizedPath;
                     }
@@ -183,117 +183,58 @@ namespace FileMonitorApps
         /// Kiểm tra đường dẫn thư mục và thông báo cho người dùng nếu không hợp lệ.
         /// </summary>
         /// <param name="rawPath">Đường dẫn người dùng nhập hoặc chọn.</param>
+        /// <param name="confirmWarnings">
+        /// true khi sắp bắt đầu giám sát: hỏi lại người dùng nếu có cảnh báo (ví dụ ổ mạng).
+        /// false khi chỉ vừa chọn thư mục: chưa cần hỏi, lúc bấm "Bắt đầu" sẽ hỏi.
+        /// </param>
         /// <param name="normalizedPath">Đường dẫn đã chuẩn hóa, chỉ có giá trị khi hàm trả về true.</param>
-        /// <returns>true nếu thư mục tồn tại và đọc được.</returns>
-        private bool TryValidateFolder(string rawPath, out string normalizedPath)
+        /// <returns>true nếu dùng được thư mục này.</returns>
+        /// <remarks>
+        /// Toàn bộ quy tắc kiểm tra nằm ở FolderValidator. Form chỉ truyền vào những gì
+        /// đang chọn trên giao diện và hiển thị kết quả.
+        /// </remarks>
+        private bool TryValidateFolder(string rawPath, bool confirmWarnings, out string normalizedPath)
         {
-            string errorMessage;
+            FolderValidationResult result = FolderValidator.Validate(
+                rawPath, logService.LogFolder, GetSelectedFilter(), chkIncludeSubdirs.Checked);
 
-            if (CheckFolder(rawPath, out normalizedPath, out errorMessage))
+            normalizedPath = result.NormalizedPath;
+
+            if (!result.IsValid)
             {
-                return true;
-            }
-
-            MessageBox.Show(this,
-                errorMessage,
-                "Đường dẫn không hợp lệ",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-            return false;
-        }
-
-        /// <summary>
-        /// Chuẩn hóa và kiểm tra một đường dẫn thư mục.
-        /// Hàm này không đụng tới giao diện để có thể kiểm thử độc lập.
-        /// </summary>
-        /// <param name="rawPath">Đường dẫn cần kiểm tra.</param>
-        /// <param name="normalizedPath">Đường dẫn tuyệt đối đã chuẩn hóa (rỗng nếu không hợp lệ).</param>
-        /// <param name="errorMessage">Mô tả lỗi để hiển thị (rỗng nếu hợp lệ).</param>
-        /// <returns>true nếu thư mục tồn tại và tài khoản hiện tại đọc được.</returns>
-        private static bool CheckFolder(string rawPath, out string normalizedPath, out string errorMessage)
-        {
-            normalizedPath = string.Empty;
-            errorMessage = string.Empty;
-
-            // Bỏ khoảng trắng và dấu nháy kép khi người dùng dán đường dẫn từ File Explorer.
-            string path = (rawPath ?? string.Empty).Trim().Trim('"');
-
-            if (path.Length == 0)
-            {
-                errorMessage = "Vui lòng chọn thư mục cần giám sát.";
+                MessageBox.Show(this,
+                    result.ErrorMessage,
+                    "Thư mục không hợp lệ",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
                 return false;
             }
 
-            // Chuẩn hóa: chuyển đường dẫn tương đối thành tuyệt đối, gộp dấu gạch chéo thừa.
-            try
+            if (confirmWarnings && result.Warning.Length > 0)
             {
-                path = Path.GetFullPath(path);
-            }
-            catch (ArgumentException)
-            {
-                errorMessage = "Đường dẫn chứa ký tự không hợp lệ:" + Environment.NewLine + rawPath;
-                return false;
-            }
-            catch (NotSupportedException)
-            {
-                errorMessage = "Định dạng đường dẫn không được hỗ trợ:" + Environment.NewLine + rawPath;
-                return false;
-            }
-            catch (PathTooLongException)
-            {
-                errorMessage = "Đường dẫn quá dài so với giới hạn của hệ điều hành.";
-                return false;
-            }
-            catch (SecurityException)
-            {
-                errorMessage = "Không đủ quyền để xử lý đường dẫn này:" + Environment.NewLine + rawPath;
-                return false;
+                DialogResult answer = MessageBox.Show(this,
+                    result.Warning,
+                    "Lưu ý về thư mục giám sát",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+
+                return answer == DialogResult.Yes;
             }
 
-            if (!Directory.Exists(path))
-            {
-                errorMessage = "Thư mục không tồn tại:" + Environment.NewLine + path;
-                return false;
-            }
-
-            // Thư mục tồn tại chưa chắc đã đọc được. Thử liệt kê một phần tử đầu tiên
-            // để phát hiện sớm lỗi phân quyền, thay vì để FileSystemWatcher báo lỗi khó hiểu về sau.
-            try
-            {
-                using (IEnumerator<string> entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator())
-                {
-                    entries.MoveNext();
-                }
-            }
-            catch (UnauthorizedAccessException)
-            {
-                errorMessage = "Tài khoản hiện tại không có quyền đọc thư mục:" + Environment.NewLine + path +
-                    Environment.NewLine + Environment.NewLine +
-                    "Hãy chọn thư mục khác, hoặc chạy chương trình với quyền Administrator.";
-                return false;
-            }
-            catch (IOException ex)
-            {
-                errorMessage = "Không đọc được thư mục:" + Environment.NewLine + path +
-                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message;
-                return false;
-            }
-
-            normalizedPath = path;
             return true;
         }
 
         /// <summary>
         /// Trả về đường dẫn thư mục đang được chọn sau khi đã kiểm tra hợp lệ,
         /// đồng thời hiển thị lại dạng đã chuẩn hóa trong ô nhập.
-        /// Nếu không hợp lệ, hiển thị thông báo và trả về chuỗi rỗng.
-        /// Bước bắt đầu giám sát ở phần sau sẽ dùng lại phương thức này.
+        /// Nếu không hợp lệ, hiển thị thông báo, đưa con trỏ về ô nhập và trả về chuỗi rỗng.
         /// </summary>
         private string GetValidatedFolderPath()
         {
             string normalizedPath;
 
-            if (!TryValidateFolder(txtFolderPath.Text, out normalizedPath))
+            if (!TryValidateFolder(txtFolderPath.Text, true, out normalizedPath))
             {
                 txtFolderPath.Focus();
                 txtFolderPath.SelectAll();
@@ -968,7 +909,7 @@ namespace FileMonitorApps
         /// <returns>true nếu được phép tiếp tục.</returns>
         private bool ConfirmHighVolumeScope(string folderPath)
         {
-            if (!chkIncludeSubdirs.Checked || !IsDriveRoot(folderPath))
+            if (!chkIncludeSubdirs.Checked || !FolderValidator.IsDriveRoot(folderPath))
             {
                 return true;
             }
@@ -987,37 +928,6 @@ namespace FileMonitorApps
                 MessageBoxDefaultButton.Button2);
 
             return answer == DialogResult.Yes;
-        }
-
-        /// <summary>
-        /// Kiểm tra một đường dẫn có phải thư mục gốc của ổ đĩa hay không (ví dụ C:\).
-        /// Hàm tĩnh, không đụng tới giao diện để kiểm thử được độc lập.
-        /// </summary>
-        private static bool IsDriveRoot(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return false;
-            }
-
-            try
-            {
-                string root = Path.GetPathRoot(path);
-                if (string.IsNullOrEmpty(root))
-                {
-                    return false;
-                }
-
-                string full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
-                return string.Equals(full, root.TrimEnd(Path.DirectorySeparatorChar),
-                    StringComparison.OrdinalIgnoreCase);
-            }
-            catch (Exception)
-            {
-                // Đường dẫn không hợp lệ thì coi như không phải thư mục gốc;
-                // phần kiểm tra đường dẫn đã được làm ở CheckFolder trước đó.
-                return false;
-            }
         }
 
         /// <summary>
