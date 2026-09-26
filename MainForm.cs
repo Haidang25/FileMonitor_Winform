@@ -100,6 +100,13 @@ namespace FileMonitorApps
         /// </summary>
         private int writeFailuresAtSessionStart;
 
+        /// <summary>
+        /// Lý do phiên giám sát gần nhất bị dừng do sự cố (không phải do người dùng bấm Dừng).
+        /// Rỗng nếu không có sự cố. Nhãn trạng thái hiện lý do này cho tới lần bắt đầu tiếp theo,
+        /// để người dùng quay lại máy vẫn biết vì sao việc giám sát đã dừng.
+        /// </summary>
+        private string lastStopReason = string.Empty;
+
         public MainForm()
         {
             InitializeComponent();
@@ -879,6 +886,7 @@ namespace FileMonitorApps
                 UpdateEventCount();
 
                 monitorService.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
+                lastStopReason = string.Empty;
                 SetMonitoringState(true);
             }
             catch (Exception ex)
@@ -908,6 +916,7 @@ namespace FileMonitorApps
             // các thay đổi cuối cùng trước khi dừng sẽ không bao giờ hiện ra.
             FlushPendingEvents();
 
+            lastStopReason = string.Empty;
             SetMonitoringState(false);
         }
 
@@ -1193,6 +1202,13 @@ namespace FileMonitorApps
                 return;
             }
 
+            // Đã dừng rồi (người dùng bấm Dừng, hoặc một sự cố trước đó đã xử lý xong).
+            // Sự kiện Error có thể đến dồn nhiều lần; không chặn thì hiện nhiều hộp thoại liền nhau.
+            if (!isMonitoring)
+            {
+                return;
+            }
+
             if (e != null && e.IsBufferOverflow)
             {
                 HandleBufferOverflow();
@@ -1202,13 +1218,19 @@ namespace FileMonitorApps
             // Sự cố khiến bộ theo dõi không chạy được nữa: dừng ở đây, tức là sau khi đã
             // về luồng giao diện, chứ không dừng ngay bên trong lời gọi lại của watcher.
             monitorService.Stop();
-            SetMonitoringState(false);
+
+            // Đưa nốt những thay đổi đã bắt được trước sự cố lên bảng, không để mất.
+            FlushPendingEvents();
 
             Exception error = e != null ? e.Error : null;
+            lastStopReason = GetShortStopReason(error, txtFolderPath.Text);
+            SetMonitoringState(false);
 
             MessageBox.Show(this,
                 "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
                 Environment.NewLine + DescribeWatchError(error, txtFolderPath.Text) +
+                Environment.NewLine + Environment.NewLine +
+                "Các thay đổi phát hiện được trước đó vẫn còn trên bảng và trong tệp nhật ký." +
                 Environment.NewLine + Environment.NewLine +
                 "Chi tiết: " + (error != null ? error.Message : "không rõ"),
                 "Lỗi giám sát",
@@ -1268,6 +1290,16 @@ namespace FileMonitorApps
         /// </remarks>
         private static string DescribeWatchError(Exception error, string folderPath)
         {
+            // Xét "mất thư mục" TRƯỚC "thiếu quyền": khi thư mục bị xóa, Windows cũng báo mã 5
+            // (Access is denied), xét ngược thứ tự sẽ báo nhầm là thiếu quyền.
+            if (IsFolderLost(error, folderPath))
+            {
+                return "Thư mục đang giám sát không còn tồn tại: nó đã bị xóa, đổi tên, di chuyển " +
+                    "(kể cả bỏ vào Thùng rác), hoặc ổ USB / ổ mạng chứa nó đã bị ngắt." +
+                    Environment.NewLine + Environment.NewLine +
+                    "Nếu thư mục được khôi phục, hãy bấm \"Bắt đầu giám sát\" lại.";
+            }
+
             System.ComponentModel.Win32Exception win32 = error as System.ComponentModel.Win32Exception;
             const int ErrorAccessDenied = 5;
 
@@ -1278,14 +1310,41 @@ namespace FileMonitorApps
                     "(quyền vừa bị thay đổi, hoặc thư mục bị khóa bởi phần mềm bảo mật).";
             }
 
-            string folder = (folderPath ?? string.Empty).Trim();
-            if (folder.Length > 0 && !Directory.Exists(folder))
-            {
-                return "Thư mục đang giám sát đã bị xóa, đổi tên hoặc di chuyển.";
-            }
-
             return "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa, bị đổi tên, " +
                 "hoặc nằm trên ổ đĩa mạng đã ngắt kết nối.";
+        }
+
+        /// <summary>
+        /// Sự cố có phải do thư mục đang giám sát không còn tồn tại hay không.
+        /// </summary>
+        private static bool IsFolderLost(Exception error, string folderPath)
+        {
+            if (error is DirectoryNotFoundException)
+            {
+                return true;
+            }
+
+            string folder = (folderPath ?? string.Empty).Trim();
+            return folder.Length > 0 && !Directory.Exists(folder);
+        }
+
+        /// <summary>
+        /// Lý do ngắn gọn để hiện trên nhãn trạng thái sau khi giám sát bị dừng do sự cố.
+        /// </summary>
+        private static string GetShortStopReason(Exception error, string folderPath)
+        {
+            if (IsFolderLost(error, folderPath))
+            {
+                return "thư mục giám sát không còn tồn tại";
+            }
+
+            System.ComponentModel.Win32Exception win32 = error as System.ComponentModel.Win32Exception;
+            if (error is UnauthorizedAccessException || (win32 != null && win32.NativeErrorCode == 5))
+            {
+                return "mất quyền truy cập thư mục";
+            }
+
+            return "gặp sự cố";
         }
 
         /// <summary>
@@ -1334,6 +1393,18 @@ namespace FileMonitorApps
         {
             if (!isMonitoring)
             {
+                if (lastStopReason.Length > 0)
+                {
+                    // Trạng thái "Lỗi" (chức năng B3): giám sát đã dừng ngoài ý muốn.
+                    // Giữ nguyên cho tới lần bắt đầu tiếp theo, không tự biến mất.
+                    lblStatus.Text = "● Lỗi — đã dừng: " + lastStopReason;
+                    lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
+                    toolTipMain.SetToolTip(lblStatus,
+                        "Giám sát đã tự dừng vì " + lastStopReason + "." + Environment.NewLine +
+                        "Thư mục: " + txtFolderPath.Text);
+                    return;
+                }
+
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
                 toolTipMain.SetToolTip(lblStatus, string.Empty);

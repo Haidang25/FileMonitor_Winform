@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 
 namespace FileMonitorApps
 {
@@ -29,6 +30,15 @@ namespace FileMonitorApps
         public bool IsBufferOverflow
         {
             get { return Error is InternalBufferOverflowException; }
+        }
+
+        /// <summary>
+        /// true nếu thư mục đang giám sát không còn tồn tại (bị xóa, đổi tên, di chuyển,
+        /// bỏ vào Thùng rác, hoặc ổ USB/ổ mạng chứa nó bị ngắt).
+        /// </summary>
+        public bool IsFolderLost
+        {
+            get { return Error is DirectoryNotFoundException; }
         }
 
         public MonitorErrorEventArgs(Exception error)
@@ -86,6 +96,29 @@ namespace FileMonitorApps
         /// Đánh dấu volatile để mọi luồng đều thấy giá trị mới nhất mà không cần khóa.
         /// </remarks>
         private volatile bool acceptingEvents;
+
+        /// <summary>
+        /// Chu kỳ kiểm tra thư mục đang giám sát còn tồn tại hay không.
+        /// </summary>
+        private const int HealthCheckIntervalMilliseconds = 2000;
+
+        /// <summary>
+        /// Bộ hẹn giờ kiểm tra định kỳ thư mục còn tồn tại (xem CheckFolderStillExists).
+        /// </summary>
+        /// <remarks>
+        /// Dùng System.Threading.Timer chứ không dùng Timer của WinForms: lớp này không được
+        /// phụ thuộc giao diện. Hàm gọi lại chạy trên thread pool, giống sự kiện của watcher.
+        /// </remarks>
+        private Timer healthTimer;
+
+        /// <summary>Đường dẫn đang giám sát, lưu riêng để luồng hẹn giờ đọc mà không đụng tới watcher.</summary>
+        private string monitoredPath = string.Empty;
+
+        /// <summary>
+        /// Bằng 1 khi đã báo "mất thư mục" cho phiên hiện tại. Sự kiện Error của watcher và bộ
+        /// hẹn giờ có thể cùng phát hiện một lúc; Interlocked đảm bảo chỉ báo đúng một lần.
+        /// </summary>
+        private int folderLossReported;
 
         /// <summary>
         /// Phát mỗi khi phát hiện một thay đổi trong thư mục đang theo dõi.
@@ -195,8 +228,14 @@ namespace FileMonitorApps
             watcher.Deleted += Watcher_Deleted;
             watcher.Created += Watcher_Created;
 
+            monitoredPath = folderPath;
+            Interlocked.Exchange(ref folderLossReported, 0);
+
             acceptingEvents = true;
             watcher.EnableRaisingEvents = true;
+
+            healthTimer = new Timer(CheckFolderStillExists, null,
+                HealthCheckIntervalMilliseconds, HealthCheckIntervalMilliseconds);
         }
 
         /// <summary>
@@ -207,6 +246,12 @@ namespace FileMonitorApps
             // Đóng cổng nhận sự kiện trước tiên, để những sự kiện đang trên đường tới
             // không lọt qua trong lúc đang dọn dẹp.
             acceptingEvents = false;
+
+            if (healthTimer != null)
+            {
+                healthTimer.Dispose();
+                healthTimer = null;
+            }
 
             if (watcher == null)
             {
@@ -460,7 +505,67 @@ namespace FileMonitorApps
                 return;
             }
 
-            OnErrorOccurred(e != null ? e.GetException() : null);
+            Exception error = e != null ? e.GetException() : null;
+
+            // Khi thư mục đang giám sát bị xóa, Windows báo lỗi "Access is denied"
+            // (Win32Exception mã 5) — rất dễ bị hiểu nhầm là thiếu quyền. Nếu thư mục thực sự
+            // không còn thì đổi thành DirectoryNotFoundException cho đúng bản chất, giữ lỗi gốc
+            // ở InnerException để tra cứu.
+            if (!(error is InternalBufferOverflowException) && !FolderExists())
+            {
+                ReportFolderLost(error);
+                return;
+            }
+
+            OnErrorOccurred(error);
+        }
+
+        /// <summary>
+        /// Hàm gọi lại của bộ hẹn giờ: báo sự cố nếu thư mục đang giám sát đã biến mất.
+        /// </summary>
+        /// <remarks>
+        /// Vì sao cần kiểm tra định kỳ, không chờ sự kiện Error của watcher:
+        /// - Xóa hẳn thư mục (Shift+Delete): Windows thường phát sự kiện Error, nhưng không
+        ///   phải phiên bản nào cũng vậy.
+        /// - Bỏ vào Thùng rác hoặc di chuyển: về bản chất là ĐỔI TÊN thư mục. Watcher vẫn bám
+        ///   theo thư mục ở vị trí mới, KHÔNG báo lỗi gì, và tiếp tục báo sự kiện với đường dẫn
+        ///   cũ đã sai. Người dùng tưởng vẫn đang giám sát đúng chỗ.
+        /// - Rút ổ USB hoặc mất mạng: có lúc không có sự kiện nào cả.
+        /// Kiểm tra Directory.Exists 2 giây một lần rất rẻ và bắt được cả ba trường hợp.
+        ///
+        /// Hạn chế: nếu thư mục bị chuyển đi rồi một thư mục MỚI cùng tên được tạo lại ngay
+        /// trong vòng 2 giây, lần kiểm tra vẫn thấy "còn tồn tại" và không phát hiện được.
+        /// </remarks>
+        private void CheckFolderStillExists(object state)
+        {
+            if (!acceptingEvents || FolderExists())
+            {
+                return;
+            }
+
+            ReportFolderLost(null);
+        }
+
+        /// <summary>Thư mục đang giám sát còn tồn tại hay không. Không bao giờ ném ngoại lệ.</summary>
+        private bool FolderExists()
+        {
+            // Directory.Exists trả về false thay vì ném ngoại lệ khi có lỗi (kể cả thiếu quyền),
+            // nên không cần try/catch.
+            return Directory.Exists(monitoredPath);
+        }
+
+        /// <summary>
+        /// Báo mất thư mục, bảo đảm chỉ báo MỘT lần cho mỗi phiên giám sát.
+        /// </summary>
+        private void ReportFolderLost(Exception original)
+        {
+            if (Interlocked.Exchange(ref folderLossReported, 1) != 0)
+            {
+                return;
+            }
+
+            OnErrorOccurred(new DirectoryNotFoundException(
+                "Thư mục đang giám sát không còn tồn tại: " + monitoredPath, original));
         }
 
         #endregion
