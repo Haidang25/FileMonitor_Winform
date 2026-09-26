@@ -11,7 +11,7 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày và ghi (bước 1–4).
+    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5).
     /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
     ///
     /// Thay đổi so với bản LogService hiện tại:
@@ -91,6 +91,8 @@ namespace FileMonitorApps
             LogFolder = logFolder;
             LastWriteError = string.Empty;
             WriteFailureCount = 0;
+            LastReadError = string.Empty;
+            LastReadSkippedLines = 0;
 
             // KHÔNG tạo thư mục ở đây. Thư mục chỉ được tạo lúc ghi bản ghi đầu tiên
             // (xem EnsureFolderExists), vì hai lẽ:
@@ -419,30 +421,151 @@ namespace FileMonitorApps
         #region Đọc
 
         /// <summary>
-        /// Đọc toàn bộ bản ghi trong khoảng ngày [from, to], cũ trước mới sau.
-        /// Chỉ mở những tệp thuộc khoảng ngày đó.
+        /// Số dòng bị bỏ qua ở lần đọc gần nhất vì không đúng định dạng.
         /// </summary>
-        public List<FileEventLog> ReadRange(DateTime from, DateTime to)
+        /// <remarks>
+        /// Khác 0 nghĩa là tệp nhật ký có dòng hỏng (bị sửa tay, hoặc chương trình tắt
+        /// đột ngột giữa lúc ghi). Giao diện có thể dùng con số này để báo cho người dùng
+        /// thay vì im lặng làm như không có gì.
+        /// </remarks>
+        public int LastReadSkippedLines { get; private set; }
+
+        /// <summary>
+        /// Mô tả các tệp không đọc được ở lần đọc gần nhất, rỗng nếu đọc được hết.
+        /// </summary>
+        public string LastReadError { get; private set; }
+
+        /// <summary>
+        /// Đọc toàn bộ nhật ký của mọi ngày, cũ trước mới sau.
+        /// </summary>
+        public List<FileEventLog> ReadAll()
         {
-            // TODO (bước 5):
-            //   - đổi chỗ nếu from > to
-            //   - duyệt day từ from.Date tới to.Date (day = day.AddDays(1)):
-            //       entries.AddRange(ReadFile(GetLogFilePath(day)));
-            //   Vì tên tệp đã là ngày nên KHÔNG cần sắp xếp lại sau khi gộp.
-            throw new NotImplementedException();
+            return ReadRange(DateTime.MinValue, DateTime.MaxValue);
         }
 
         /// <summary>
-        /// Đọc một tệp. Tệp không có → danh sách rỗng. Dòng hỏng → bỏ qua.
+        /// Đọc toàn bộ bản ghi trong khoảng ngày [from, to], cũ trước mới sau.
+        /// Chỉ mở những tệp thuộc khoảng ngày đó.
         /// </summary>
-        private List<FileEventLog> ReadFile(string filePath)
+        /// <remarks>
+        /// Duyệt theo danh sách tệp ĐANG CÓ (GetAvailableDays) chứ không duyệt từng ngày
+        /// từ from tới to:
+        /// - Khoảng 7 ngày mà chỉ 2 ngày có giám sát thì chỉ đụng tới 2 tệp.
+        /// - ReadAll truyền vào MinValue..MaxValue; duyệt từng ngày sẽ là ~3,6 triệu vòng lặp.
+        ///
+        /// Tệp nào không đọc được thì bỏ qua tệp đó và ghi lý do vào LastReadError,
+        /// các ngày còn lại vẫn được trả về. Một tệp hỏng không được làm mất cả lần tải.
+        ///
+        /// Thứ tự: GetAvailableDays đã sắp xếp tăng dần, trong mỗi tệp các dòng nằm theo
+        /// thứ tự ghi, nên KHÔNG cần sắp xếp lại sau khi gộp.
+        /// </remarks>
+        public List<FileEventLog> ReadRange(DateTime from, DateTime to)
         {
-            // TODO (bước 5):
-            //   - lock (fileLock): nếu tệp không tồn tại → trả về rỗng;
-            //       lines = File.ReadAllLines(filePath, Encoding.UTF8)
-            //   - NGOÀI khóa: duyệt lines, FileEventLog.TryParse → thêm vào danh sách
-            //   Phân tích dòng nằm ngoài khóa để luồng watcher không phải chờ lâu.
-            throw new NotImplementedException();
+            if (from > to)
+            {
+                DateTime swap = from;
+                from = to;
+                to = swap;
+            }
+
+            DateTime firstDay = from.Date;
+            DateTime lastDay = to.Date;
+
+            List<FileEventLog> entries = new List<FileEventLog>();
+            List<string> errors = new List<string>();
+            int skippedLines = 0;
+
+            foreach (DateTime day in GetAvailableDays())
+            {
+                if (day < firstDay || day > lastDay)
+                {
+                    continue;
+                }
+
+                string path = GetLogFilePath(day);
+
+                string[] lines;
+                try
+                {
+                    lines = ReadLines(path);
+                }
+                catch (IOException ex)
+                {
+                    errors.Add(Path.GetFileName(path) + ": " + ex.Message);
+                    continue;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    errors.Add(Path.GetFileName(path) + ": " + ex.Message);
+                    continue;
+                }
+
+                // Phân tích dòng NGOÀI khóa: ReadLines đã trả khóa ngay khi đọc xong,
+                // nên luồng watcher không phải chờ trong lúc đang phân tích hàng nghìn dòng.
+                foreach (string line in lines)
+                {
+                    // Dòng trống (thường là dòng cuối tệp) không tính là dòng hỏng.
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    FileEventLog entry;
+                    if (FileEventLog.TryParse(line, out entry))
+                    {
+                        entries.Add(entry);
+                    }
+                    else
+                    {
+                        skippedLines++;
+                    }
+                }
+            }
+
+            LastReadSkippedLines = skippedLines;
+            LastReadError = string.Join(Environment.NewLine, errors.ToArray());
+
+            return entries;
+        }
+
+        /// <summary>
+        /// Đọc mọi dòng của một tệp. Tệp không tồn tại → mảng rỗng.
+        /// </summary>
+        /// <remarks>
+        /// Giữ fileLock trong lúc đọc: nếu đúng lúc đó luồng watcher đang ghi dở một dòng,
+        /// ta sẽ phải chờ nó ghi xong, không bao giờ đọc được nửa dòng do chính chương trình ghi.
+        ///
+        /// Không dùng File.ReadAllLines: hàm đó mở tệp với FileShare.Read, nghĩa là
+        /// "không cho ai khác đang ghi". Nếu có một cửa sổ FileMonitor thứ hai đang mở tệp
+        /// để ghi, việc đọc sẽ ném IOException. Mở với FileShare.ReadWrite thì đọc được
+        /// bình thường; cùng lắm dòng cuối bị ghi dở, và dòng đó bị TryParse loại ra.
+        ///
+        /// Encoding.UTF8 tự nhận và bỏ qua BOM nếu có, nên đọc được cả tệp do
+        /// công cụ khác (ví dụ Notepad cũ) lưu lại kèm BOM.
+        /// </remarks>
+        private string[] ReadLines(string path)
+        {
+            List<string> lines = new List<string>();
+
+            lock (fileLock)
+            {
+                if (!File.Exists(path))
+                {
+                    return lines.ToArray();
+                }
+
+                using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lines.Add(line);
+                    }
+                }
+            }
+
+            return lines.ToArray();
         }
 
         #endregion
