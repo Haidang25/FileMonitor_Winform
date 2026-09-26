@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace FileMonitorApps
 {
@@ -10,8 +11,8 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — mọi phương thức đều đang ném NotImplementedException.
-    /// Làm theo thứ tự số bước ghi trong TODO: bước sau dùng lại kết quả bước trước.
+    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày và ghi (bước 1–4).
+    /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
     ///
     /// Thay đổi so với bản LogService hiện tại:
     ///   1. Mỗi ngày một tệp: Logs\filemonitor-yyyyMMdd.log (checklist F).
@@ -189,12 +190,23 @@ namespace FileMonitorApps
         #region Ghi
 
         /// <summary>
-        /// Ghi thêm một bản ghi vào tệp của NGÀY TRONG BẢN GHI (entry.Time),
+        /// Số lần thử mở tệp khi tệp đang bị chương trình khác giữ tạm thời.
+        /// </summary>
+        private const int MaxOpenAttempts = 3;
+
+        /// <summary>Thời gian chờ giữa hai lần thử mở tệp, tính bằng mili giây.</summary>
+        private const int RetryDelayMilliseconds = 50;
+
+        /// <summary>
+        /// Ghi thêm một bản ghi vào cuối tệp của NGÀY TRONG BẢN GHI (entry.Time),
         /// không phải ngày hiện tại.
         /// </summary>
         /// <remarks>
         /// Lấy theo entry.Time để sự kiện xảy ra lúc 23:59:59.9 nhưng tới lúc 00:00:00.1
         /// mới được ghi vẫn nằm đúng tệp của ngày hôm trước.
+        ///
+        /// Gọi được đồng thời từ nhiều luồng: FileSystemWatcher phát sự kiện trên
+        /// nhiều luồng của thread pool, và mỗi luồng đều gọi vào đây.
         /// </remarks>
         /// <returns>true nếu ghi thành công; false nếu lỗi, xem LastWriteError.</returns>
         public bool TryAppend(FileEventLog entry)
@@ -204,34 +216,176 @@ namespace FileMonitorApps
                 return false;
             }
 
+            return TryAppendRange(new FileEventLog[] { entry }) == 1;
+        }
+
+        /// <summary>
+        /// Ghi thêm nhiều bản ghi. Mỗi tệp ngày chỉ mở MỘT lần cho cả lô.
+        /// </summary>
+        /// <remarks>
+        /// Dùng khi có sẵn cả lô, ví dụ khi thư mục thay đổi dồn dập: mở/đóng tệp là
+        /// thao tác tốn kém nhất của việc ghi, gộp lại thì đỡ hẳn.
+        /// Lô vắt qua nửa đêm sẽ được tách ra hai tệp, mỗi tệp giữ đúng thứ tự ban đầu.
+        /// </remarks>
+        /// <returns>Số bản ghi đã ghi thành công.</returns>
+        public int TryAppendRange(IEnumerable<FileEventLog> entries)
+        {
+            if (entries == null)
+            {
+                return 0;
+            }
+
+            // Bước 1 — chuẩn bị NGOÀI khóa: chuyển bản ghi thành dòng và nhóm theo tệp.
+            // Việc này chỉ dùng CPU, không đụng đĩa, nên không có lý do bắt luồng khác chờ.
+            // Dùng List các nhóm (thay vì chỉ Dictionary) để giữ thứ tự tệp như thứ tự
+            // bản ghi đầu vào — Dictionary không cam kết thứ tự duyệt.
+            Dictionary<string, List<string>> linesByFile =
+                new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            List<string> fileOrder = new List<string>();
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                string path = GetLogFilePath(entry.Time);
+
+                List<string> lines;
+                if (!linesByFile.TryGetValue(path, out lines))
+                {
+                    lines = new List<string>();
+                    linesByFile.Add(path, lines);
+                    fileOrder.Add(path);
+                }
+
+                lines.Add(entry.ToLogLine());
+            }
+
+            if (fileOrder.Count == 0)
+            {
+                return 0;
+            }
+
+            // Bước 2 — ghi TRONG khóa. Khóa bao trọn từ lúc mở tới lúc đóng tệp, nên
+            // tại một thời điểm chỉ một luồng được ghi: các dòng không bao giờ chen vào
+            // giữa nhau, và không có hai luồng cùng mở tệp để ghi (sẽ ném IOException).
+            int written = 0;
+
             lock (fileLock)
             {
                 try
                 {
                     EnsureFolderExists();
-
-                    // append = true: tệp chưa có thì StreamWriter tự tạo, có rồi thì ghi nối
-                    // vào cuối. Vì vậy sang ngày mới là tự sinh tệp mới, không cần code riêng.
-                    // UTF8Encoding(false): không ghi BOM, tránh BOM lặp lại giữa tệp.
-                    using (StreamWriter writer = new StreamWriter(
-                        GetLogFilePath(entry.Time), true, new UTF8Encoding(false)))
-                    {
-                        writer.WriteLine(entry.ToLogLine());
-                    }
-
-                    return true;
                 }
                 catch (IOException ex)
                 {
-                    // Đĩa đầy, tệp đang bị chương trình khác khóa...
                     RecordWriteFailure(ex);
-                    return false;
+                    return 0;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
                     // Chương trình đặt trong thư mục không có quyền ghi, ví dụ Program Files.
                     RecordWriteFailure(ex);
-                    return false;
+                    return 0;
+                }
+
+                foreach (string path in fileOrder)
+                {
+                    List<string> lines = linesByFile[path];
+
+                    if (AppendLines(path, lines))
+                    {
+                        written += lines.Count;
+                    }
+                }
+            }
+
+            return written;
+        }
+
+        /// <summary>
+        /// Ghi nối các dòng vào cuối một tệp. Phải gọi khi đang giữ fileLock.
+        /// </summary>
+        /// <returns>true nếu ghi đủ; false nếu lỗi (đã ghi nhận vào LastWriteError).</returns>
+        private bool AppendLines(string path, List<string> lines)
+        {
+            FileStream stream = OpenForAppend(path);
+            if (stream == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                // UTF8Encoding(false): không ghi BOM. Nếu có BOM, mỗi lần mở tệp đã có
+                // dữ liệu lại chèn thêm BOM vào giữa tệp.
+                using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                {
+                    foreach (string line in lines)
+                    {
+                        writer.WriteLine(line);
+                    }
+                }
+
+                return true;
+            }
+            catch (IOException ex)
+            {
+                // Lỗi giữa chừng lúc đang ghi (thường là đĩa đầy). KHÔNG thử lại ở đây:
+                // một phần các dòng có thể đã xuống đĩa, ghi lại sẽ sinh dòng trùng.
+                RecordWriteFailure(ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Mở tệp ở chế độ ghi nối, thử lại vài lần nếu tệp đang bị giữ tạm thời.
+        /// Phải gọi khi đang giữ fileLock.
+        /// </summary>
+        /// <returns>Luồng tệp đã mở, hoặc null nếu không mở được.</returns>
+        /// <remarks>
+        /// FileMode.Append: tệp chưa có thì tự tạo, có rồi thì con trỏ ghi đặt sẵn ở cuối.
+        /// Vì vậy sang ngày mới là tự sinh tệp mới, không cần code riêng.
+        ///
+        /// FileShare.Read: trong lúc đang ghi, chương trình khác (Notepad, Excel) vẫn
+        /// ĐỌC được tệp, nhưng không ai ghi chen vào được.
+        ///
+        /// Vì sao thử lại: phần mềm diệt virus hoặc công cụ sao lưu hay mở tệp vừa thay đổi
+        /// trong chốc lát. Chỉ thử lại lúc MỞ tệp — khi đó chưa có dòng nào được ghi, nên
+        /// thử lại không bao giờ sinh dòng trùng.
+        ///
+        /// lock chỉ chặn được các luồng trong CÙNG chương trình. Nếu mở hai cửa sổ
+        /// FileMonitor cùng ghi một thư mục Logs, FileShare.Read là thứ chặn chúng ghi
+        /// đè lên nhau: bên đến sau không mở được tệp và nhận IOException.
+        /// </remarks>
+        private FileStream OpenForAppend(string path)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+                }
+                catch (IOException ex)
+                {
+                    if (attempt >= MaxOpenAttempts)
+                    {
+                        RecordWriteFailure(ex);
+                        return null;
+                    }
+
+                    // Đang giữ khóa nên các luồng khác phải chờ theo. Tổng thời gian chờ
+                    // tối đa (MaxOpenAttempts - 1) * RetryDelayMilliseconds = 100 ms,
+                    // đủ ngắn để không làm tràn bộ đệm của FileSystemWatcher.
+                    Thread.Sleep(RetryDelayMilliseconds);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    // Thiếu quyền thì chờ bao lâu cũng vậy, không thử lại.
+                    RecordWriteFailure(ex);
+                    return null;
                 }
             }
         }
