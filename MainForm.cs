@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -327,8 +328,24 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Bấm "Xuất log": lưu danh sách đang hiển thị ra tệp CSV để mở bằng Excel.
+        /// Thư mục người dùng đã chọn ở lần xuất gần nhất trong phiên làm việc này.
+        /// Lần xuất sau mở hộp thoại ngay tại đó, không phải duyệt lại từ đầu.
         /// </summary>
+        private string lastExportFolder = string.Empty;
+
+        /// <summary>Vị trí lựa chọn "dấu chấm phẩy" trong bộ lọc của SaveFileDialog (đánh số từ 1).</summary>
+        private const int ExportFormatSemicolon = 1;
+
+        /// <summary>Vị trí lựa chọn "dấu phẩy" trong bộ lọc của SaveFileDialog.</summary>
+        private const int ExportFormatComma = 2;
+
+        /// <summary>
+        /// Bấm "Xuất log": cho người dùng chọn nơi lưu, rồi ghi danh sách đang hiển thị ra tệp CSV.
+        /// </summary>
+        /// <remarks>
+        /// Xuất đúng loadedLogEntries — những gì đang thấy trên bảng sau khi đã lọc —
+        /// chứ không phải toàn bộ nhật ký. Người dùng lọc ra 12 dòng thì tệp có 12 dòng.
+        /// </remarks>
         private void btnExportLog_Click(object sender, EventArgs e)
         {
             // Nút đã bị làm mờ khi không có dữ liệu, đây chỉ là chốt chặn phòng xa.
@@ -337,33 +354,188 @@ namespace FileMonitorApps
                 return;
             }
 
-            saveFileDialog.FileName = "nhatky-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv";
-
-            if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+            string destinationPath;
+            char separator;
+            if (!AskExportDestination(out destinationPath, out separator))
             {
                 return;
             }
 
+            int exported;
+            Cursor previousCursor = Cursor.Current;
+            Cursor.Current = Cursors.WaitCursor;
             try
             {
-                logService.ExportCsv(saveFileDialog.FileName, loadedLogEntries);
-
-                MessageBox.Show(this,
-                    "Đã xuất " + loadedLogEntries.Count.ToString("N0") + " bản ghi ra tệp:" +
-                    Environment.NewLine + saveFileDialog.FileName,
-                    "Xuất thành công",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                exported = logService.ExportCsv(destinationPath, loadedLogEntries, separator);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                ShowExportError(destinationPath,
+                    "Không có quyền ghi vào thư mục này. Hãy chọn thư mục khác, ví dụ Documents.",
+                    ex);
+                return;
+            }
+            catch (IOException ex)
+            {
+                // Trường hợp hay gặp nhất: tệp cùng tên đang mở trong Excel. Excel khóa
+                // tệp đang mở, nên xuất đè lên nó sẽ thất bại cho tới khi đóng lại.
+                ShowExportError(destinationPath,
+                    "Tệp đang được mở bởi chương trình khác (thường là Excel), " +
+                    "hoặc ổ đĩa không ghi được. Hãy đóng tệp rồi xuất lại, hoặc đặt tên khác.",
+                    ex);
+                return;
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this,
-                    "Không ghi được tệp CSV." + Environment.NewLine +
-                    Environment.NewLine + "Chi tiết: " + ex.Message,
-                    "Lỗi",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                ShowExportError(destinationPath, "Không ghi được tệp CSV.", ex);
+                return;
             }
+            finally
+            {
+                Cursor.Current = previousCursor;
+            }
+
+            lastExportFolder = Path.GetDirectoryName(destinationPath);
+
+            DialogResult answer = MessageBox.Show(this,
+                "Đã xuất " + exported.ToString("N0") + " bản ghi ra tệp:" +
+                Environment.NewLine + destinationPath +
+                Environment.NewLine + Environment.NewLine + "Mở thư mục chứa tệp?",
+                "Xuất thành công",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button2);
+
+            if (answer == DialogResult.Yes)
+            {
+                ShowInExplorer(destinationPath);
+            }
+        }
+
+        /// <summary>
+        /// Mở SaveFileDialog để người dùng chọn nơi lưu và kiểu dấu phân cách.
+        /// </summary>
+        /// <param name="destinationPath">Đường dẫn tệp đã chọn, luôn có đuôi .csv.</param>
+        /// <param name="separator">Dấu phân cách ứng với lựa chọn trong hộp thoại.</param>
+        /// <returns>false nếu người dùng bấm Hủy.</returns>
+        /// <remarks>
+        /// Hai lựa chọn định dạng nằm ngay trong ô "Save as type" của hộp thoại, nên người dùng
+        /// không cần thêm một hộp thoại hỏi riêng. Lựa chọn khớp với cài đặt vùng của máy được
+        /// chọn sẵn: máy đặt vùng Việt Nam thì Excel tách cột bằng dấu chấm phẩy, gặp tệp
+        /// phân cách bằng dấu phẩy sẽ dồn cả dòng vào một cột.
+        /// </remarks>
+        private bool AskExportDestination(out string destinationPath, out char separator)
+        {
+            destinationPath = string.Empty;
+            separator = LogService.DefaultCsvSeparator;
+
+            saveFileDialog.Title = "Xuất nhật ký ra tệp CSV";
+            saveFileDialog.Filter =
+                "CSV phân cách bằng dấu chấm phẩy — Excel đặt vùng Việt Nam (*.csv)|*.csv|" +
+                "CSV phân cách bằng dấu phẩy — chuẩn quốc tế (*.csv)|*.csv";
+            saveFileDialog.FilterIndex = GetSystemListSeparator() == ';'
+                ? ExportFormatSemicolon
+                : ExportFormatComma;
+            saveFileDialog.DefaultExt = "csv";
+            saveFileDialog.AddExtension = true;
+            saveFileDialog.OverwritePrompt = true;
+            saveFileDialog.CheckPathExists = true;
+
+            // Không cho hộp thoại đổi thư mục làm việc hiện tại của chương trình.
+            saveFileDialog.RestoreDirectory = true;
+
+            saveFileDialog.InitialDirectory = Directory.Exists(lastExportFolder)
+                ? lastExportFolder
+                : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+            saveFileDialog.FileName = BuildExportFileName();
+
+            if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return false;
+            }
+
+            string path = saveFileDialog.FileName;
+
+            // Ép đuôi .csv dù người dùng gõ tên kèm đuôi khác. Nhờ vậy không bao giờ ghi đè
+            // nhầm lên tệp nhật ký (.log) hay một tệp quan trọng nào khác của người dùng.
+            if (!string.Equals(Path.GetExtension(path), ".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                path += ".csv";
+            }
+
+            destinationPath = path;
+            separator = saveFileDialog.FilterIndex == ExportFormatSemicolon ? ';' : ',';
+            return true;
+        }
+
+        /// <summary>
+        /// Gợi ý tên tệp theo bộ lọc đang áp dụng, ví dụ "nhatky_20260919-20260926_Deleted.csv".
+        /// </summary>
+        /// <remarks>
+        /// Tên tệp mô tả luôn nội dung bên trong, để mấy hôm sau mở thư mục ra vẫn biết
+        /// tệp nào là tệp nào mà không phải mở từng tệp.
+        /// </remarks>
+        private string BuildExportFileName()
+        {
+            string name = "nhatky_"
+                + dtpFrom.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture)
+                + "-"
+                + dtpTo.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+            FilterItem selectedType = cboEventTypeFilter.SelectedItem as FilterItem;
+            if (selectedType != null && selectedType.Pattern.Length > 0)
+            {
+                name += "_" + selectedType.Pattern;
+            }
+
+            return name + ".csv";
+        }
+
+        /// <summary>
+        /// Dấu phân cách danh sách (List separator) trong cài đặt vùng của Windows —
+        /// chính là dấu Excel dùng để tách cột khi mở tệp CSV.
+        /// </summary>
+        private static char GetSystemListSeparator()
+        {
+            string listSeparator = CultureInfo.CurrentCulture.TextInfo.ListSeparator;
+
+            if (string.IsNullOrEmpty(listSeparator))
+            {
+                return ',';
+            }
+
+            return listSeparator[0] == ';' ? ';' : ',';
+        }
+
+        /// <summary>
+        /// Mở File Explorer và chọn sẵn tệp vừa xuất.
+        /// </summary>
+        private static void ShowInExplorer(string filePath)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + filePath + "\"");
+            }
+            catch (Exception)
+            {
+                // Không mở được Explorer cũng không sao: tệp đã được lưu thành công,
+                // và đường dẫn đã hiện trong hộp thoại ngay trước đó.
+            }
+        }
+
+        /// <summary>
+        /// Báo lỗi xuất tệp kèm lời khuyên cụ thể cho từng nguyên nhân.
+        /// </summary>
+        private void ShowExportError(string destinationPath, string advice, Exception ex)
+        {
+            MessageBox.Show(this,
+                "Không xuất được nhật ký ra tệp:" + Environment.NewLine + destinationPath +
+                Environment.NewLine + Environment.NewLine + advice +
+                Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                "Lỗi xuất nhật ký",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
 
         /// <summary>
