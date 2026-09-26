@@ -11,7 +11,7 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5, bước 8 và lọc theo loại sự kiện của bước 6).
+    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5, bước 8 lọc theo loại sự kiện và tìm theo từ khóa của bước 6).
     /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
     ///
     /// Thay đổi so với bản LogService hiện tại:
@@ -650,6 +650,41 @@ namespace FileMonitorApps
             foreach (FileEventLog entry in entries)
             {
                 if (filter.MatchesEventType(entry))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Tìm các bản ghi có chứa từ khóa trong tên tệp hoặc đường dẫn.
+        /// Từ khóa rỗng thì trả về tất cả.
+        /// </summary>
+        /// <param name="entries">Danh sách cần tìm. Không bị sửa.</param>
+        /// <param name="keyword">Từ khóa; nhiều từ cách nhau bởi khoảng trắng.</param>
+        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
+        /// <remarks>
+        /// Quy tắc tìm (không phân biệt hoa/thường và dấu, nhiều từ là AND, tìm cả tên cũ
+        /// của sự kiện Renamed) nằm ở LogFilter.MatchesKeyword; hàm này dùng lại đúng quy tắc
+        /// đó để tìm riêng và lọc tổng hợp không bao giờ cho hai kết quả khác nhau.
+        /// </remarks>
+        public static List<FileEventLog> Search(IEnumerable<FileEventLog> entries, string keyword)
+        {
+            List<FileEventLog> result = new List<FileEventLog>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            LogFilter filter = new LogFilter();
+            filter.Keyword = keyword;
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (filter.MatchesKeyword(entry))
                 {
                     result.Add(entry);
                 }
