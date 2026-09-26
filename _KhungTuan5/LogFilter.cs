@@ -118,15 +118,65 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Bản ghi có nằm trong khoảng ngày đang lọc hay không.
+        /// Mốc đầu của khoảng lọc: 00:00:00 của ngày sớm hơn.
         /// </summary>
+        /// <remarks>
+        /// Người dùng có thể chọn "Từ ngày" sau "Đến ngày" (MainForm tự chỉnh lại, nhưng
+        /// LogFilter không được phép dựa vào điều đó). Khi hai ngày bị ngược thì đổi chỗ,
+        /// giống cách ReadRange của LogService đang làm, để đọc tệp và lọc bản ghi
+        /// không bao giờ hiểu khoảng ngày theo hai cách khác nhau.
+        /// </remarks>
+        public DateTime RangeStart
+        {
+            get
+            {
+                DateTime first = FromDate <= ToDate ? FromDate : ToDate;
+                return first.Date;
+            }
+        }
+
+        /// <summary>
+        /// Mốc cuối của khoảng lọc: 23:59:59.9999999 của ngày muộn hơn.
+        /// </summary>
+        /// <remarks>
+        /// Lấy tới HẾT ngày chứ không dừng ở 00:00:00: DateTimePicker trả về ngày kèm giờ
+        /// hiện tại hoặc 00:00:00 tùy lúc, nếu so thẳng thì chọn "đến hôm nay" sẽ bỏ sót
+        /// các sự kiện xảy ra sau giờ đó của chính hôm nay.
+        ///
+        /// Ngày cuối cùng mà DateTime biểu diễn được (31/12/9999) phải xử lý riêng:
+        /// cộng thêm một ngày sẽ vượt giới hạn và ném ArgumentOutOfRangeException.
+        /// </remarks>
+        public DateTime RangeEnd
+        {
+            get
+            {
+                DateTime last = FromDate <= ToDate ? ToDate : FromDate;
+
+                if (last.Date == DateTime.MaxValue.Date)
+                {
+                    return DateTime.MaxValue;
+                }
+
+                return last.Date.AddDays(1).AddTicks(-1);
+            }
+        }
+
+        /// <summary>
+        /// Bản ghi có nằm trong khoảng ngày đang lọc hay không (tính cả hai ngày đầu mút).
+        /// </summary>
+        /// <remarks>
+        /// So sánh với khoảng đóng [RangeStart, RangeEnd], chính xác tới từng tick (0,1 micro giây),
+        /// nên sự kiện lúc 23:59:59.999 của ngày cuối vẫn được tính, còn 00:00:00 của ngày
+        /// hôm sau thì không.
+        /// </remarks>
         public bool MatchesDate(FileEventLog entry)
         {
-            // TODO (bước 3):
-            //   - from = FromDate.Date
-            //   - to   = ToDate.Date.AddDays(1).AddTicks(-1)   // hết ngày, xem FilterByDate cũ
-            //   - return entry.Time >= from && entry.Time <= to;
-            throw new NotImplementedException();
+            if (entry == null)
+            {
+                return false;
+            }
+
+            return entry.Time >= RangeStart && entry.Time <= RangeEnd;
         }
 
         /// <summary>

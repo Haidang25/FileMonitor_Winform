@@ -11,8 +11,7 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5, bước 8 lọc theo loại sự kiện và tìm theo từ khóa của bước 6).
-    /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
+    /// KHUNG TUẦN 5 — đã xong bước 1–8. Chỉ còn ClearAll (bước 9) đang ném NotImplementedException.
     ///
     /// Thay đổi so với bản LogService hiện tại:
     ///   1. Mỗi ngày một tệp: Logs\filemonitor-yyyyMMdd.log (checklist F).
@@ -575,13 +574,26 @@ namespace FileMonitorApps
         /// <summary>
         /// Đọc và lọc trong một bước. Kết quả sắp xếp mới nhất lên đầu, sẵn để hiển thị.
         /// </summary>
+        /// <remarks>
+        /// Khoảng ngày được dùng HAI lần, mỗi lần một việc:
+        /// - ReadRange dùng nó để chọn TỆP cần mở: 7 ngày thì mở tối đa 7 tệp, không đọc
+        ///   cả lịch sử nhiều tháng rồi mới lọc. Đây là lợi ích chính của việc tách tệp theo ngày.
+        /// - Filter dùng nó để lọc từng BẢN GHI, để kết quả vẫn đúng kể cả khi một tệp chứa
+        ///   bản ghi lệch ngày (ví dụ người dùng tự chép nối hai tệp vào nhau).
+        /// </remarks>
         public List<FileEventLog> Query(LogFilter filter)
         {
-            // TODO (bước 7):
-            //   - filter == null → dùng new LogFilter()
-            //   - entries = ReadRange(filter.FromDate, filter.ToDate)
-            //   - result = Filter(entries, filter); result.Reverse(); return result;
-            throw new NotImplementedException();
+            if (filter == null)
+            {
+                filter = new LogFilter();
+            }
+
+            List<FileEventLog> entries = ReadRange(filter.RangeStart, filter.RangeEnd);
+            List<FileEventLog> result = Filter(entries, filter);
+
+            // Tệp ghi nối nên thứ tự đọc ra là cũ trước, mới sau. Đảo lại cho bảng hiển thị.
+            result.Reverse();
+            return result;
         }
 
         /// <summary>
@@ -593,7 +605,6 @@ namespace FileMonitorApps
         /// lọc lại trên danh sách đã tải, không đọc lại tệp mỗi lần thay đổi.
         /// Hàm tĩnh, kiểm thử được độc lập.
         ///
-        /// Chạy được khi LogFilter.Matches đã làm xong cả phần lọc ngày và từ khóa.
         /// </remarks>
         public static List<FileEventLog> Filter(IEnumerable<FileEventLog> entries, LogFilter filter)
         {
@@ -650,6 +661,41 @@ namespace FileMonitorApps
             foreach (FileEventLog entry in entries)
             {
                 if (filter.MatchesEventType(entry))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Lọc theo khoảng ngày [from, to], tính cả hai ngày đầu mút.
+        /// </summary>
+        /// <param name="entries">Danh sách cần lọc. Không bị sửa.</param>
+        /// <param name="from">Ngày bắt đầu (phần giờ bị bỏ qua).</param>
+        /// <param name="to">Ngày kết thúc (lấy tới hết ngày). Ngược với from thì tự đổi chỗ.</param>
+        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
+        /// <remarks>
+        /// Dùng lại đúng quy tắc của LogFilter.MatchesDate, giống FilterByEventType và Search.
+        /// </remarks>
+        public static List<FileEventLog> FilterByDate(IEnumerable<FileEventLog> entries,
+            DateTime from, DateTime to)
+        {
+            List<FileEventLog> result = new List<FileEventLog>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            LogFilter filter = new LogFilter();
+            filter.FromDate = from;
+            filter.ToDate = to;
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (filter.MatchesDate(entry))
                 {
                     result.Add(entry);
                 }
