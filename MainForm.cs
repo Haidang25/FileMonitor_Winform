@@ -82,11 +82,23 @@ namespace FileMonitorApps
         private List<FileEventLog> loadedLogEntries = new List<FileEventLog>();
 
         /// <summary>
-        /// Toàn bộ nhật ký đọc từ tệp, giữ nguyên chưa lọc.
+        /// Nhật ký của khoảng ngày đang chọn, đọc từ tệp, chưa lọc theo loại và từ khóa.
         /// Nhờ vậy khi người dùng gõ tìm kiếm hoặc đổi bộ lọc thì chỉ cần lọc lại
         /// trên bộ nhớ, không phải đọc lại tệp mỗi lần nhấn phím.
         /// </summary>
         private List<FileEventLog> allLogEntries = new List<FileEventLog>();
+
+        /// <summary>
+        /// Người dùng đã bấm "Tải log" ít nhất một lần chưa. Từ lúc đó, đổi khoảng ngày
+        /// sẽ đọc lại đúng các tệp của khoảng ngày mới thay vì chỉ lọc trên bộ nhớ.
+        /// </summary>
+        private bool logLoaded;
+
+        /// <summary>
+        /// Số lần ghi nhật ký thất bại của LogService tại thời điểm bắt đầu phiên giám sát.
+        /// Lấy hiệu với con số hiện tại để ra số lần lỗi của riêng phiên này.
+        /// </summary>
+        private int writeFailuresAtSessionStart;
 
         public MainForm()
         {
@@ -104,7 +116,24 @@ namespace FileMonitorApps
             SetMonitoringState(false);
             InitDateFilter();
             LoadEventTypeFilters();
-            SetCueBanner(txtSearch, "Tìm theo tên tệp hoặc đường dẫn...");
+            SetCueBanner(txtSearch, "Tìm theo tên tệp hoặc đường dẫn (không cần dấu)...");
+            ImportLegacyLog();
+        }
+
+        /// <summary>
+        /// Chuyển nhật ký của phiên bản cũ (một tệp duy nhất) sang các tệp theo ngày.
+        /// Chỉ làm một lần; lỗi ở đây không được phép chặn chương trình mở lên.
+        /// </summary>
+        private void ImportLegacyLog()
+        {
+            try
+            {
+                logService.ImportLegacyLog();
+            }
+            catch (Exception)
+            {
+                // Tệp cũ vẫn còn nguyên và sẽ được thử lại ở lần mở sau.
+            }
         }
 
         #region Chọn thư mục giám sát
@@ -283,47 +312,118 @@ namespace FileMonitorApps
         private const string DisplayTimeFormat = "dd/MM/yyyy HH:mm:ss";
 
         /// <summary>
-        /// Bấm "Tải log": đọc tệp nhật ký trên đĩa và đổ vào bảng, mới nhất lên đầu.
+        /// Bấm "Tải log": đọc nhật ký của khoảng ngày đang chọn và đổ vào bảng.
         /// </summary>
         private void btnLoadLog_Click(object sender, EventArgs e)
         {
+            LoadLogFromDisk(true);
+        }
+
+        /// <summary>
+        /// Đọc lại nhật ký của khoảng ngày đang chọn từ đĩa, rồi áp bộ lọc loại và từ khóa.
+        /// </summary>
+        /// <param name="showMessages">
+        /// true khi người dùng bấm "Tải log": báo rõ nếu không có dữ liệu hoặc có tệp lỗi.
+        /// false khi tự đọc lại do đổi ngày: không hiện hộp thoại nào, tránh làm phiền
+        /// người dùng đang bấm chọn ngày.
+        /// </param>
+        /// <remarks>
+        /// Chỉ đọc tệp của khoảng ngày đang chọn (LogService.ReadRange), không đọc cả lịch sử.
+        /// Lọc theo loại và từ khóa thì làm trên bộ nhớ ở ApplyLogFilters, nên gõ tìm kiếm
+        /// không phải đọc lại đĩa.
+        /// </remarks>
+        private void LoadLogFromDisk(bool showMessages)
+        {
             try
             {
-                allLogEntries = logService.ReadAll();
-                ApplyLogFilters();
-
-                if (allLogEntries.Count == 0)
-                {
-                    MessageBox.Show(this,
-                        "Chưa có nhật ký nào được ghi." + Environment.NewLine +
-                        Environment.NewLine + "Tệp nhật ký: " + logService.LogFilePath,
-                        "Nhật ký trống",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                }
-                else if (loadedLogEntries.Count == 0)
-                {
-                    // Phân biệt rõ "chưa ghi gì" với "có dữ liệu nhưng bị bộ lọc loại hết",
-                    // nếu không người dùng sẽ tưởng chương trình không ghi được nhật ký.
-                    MessageBox.Show(this,
-                        "Không có bản ghi nào khớp với bộ lọc hiện tại." + Environment.NewLine +
-                        Environment.NewLine + "Toàn bộ nhật ký có " +
-                        allLogEntries.Count.ToString("N0") + " bản ghi. " +
-                        "Hãy thử nới rộng khoảng ngày, xóa từ khóa tìm kiếm " +
-                        "hoặc chọn lại \"Tất cả loại\".",
-                        "Không có dữ liệu phù hợp",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                }
+                allLogEntries = logService.ReadRange(dtpFrom.Value, dtpTo.Value);
+                logLoaded = true;
             }
             catch (Exception ex)
             {
+                // ReadRange tự bỏ qua từng tệp lỗi; tới được đây là lỗi ở mức thư mục,
+                // ví dụ không có quyền liệt kê thư mục Logs.
+                if (showMessages)
+                {
+                    MessageBox.Show(this,
+                        "Không đọc được thư mục nhật ký:" + Environment.NewLine + logService.LogFolder +
+                        Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                        "Lỗi",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+                return;
+            }
+
+            ApplyLogFilters();
+
+            if (showMessages)
+            {
+                ReportLoadResult();
+            }
+        }
+
+        /// <summary>
+        /// Báo cho người dùng kết quả của lần "Tải log" vừa rồi, nếu có gì đáng chú ý.
+        /// </summary>
+        /// <remarks>
+        /// Phân biệt rõ ba tình huống dễ nhầm với nhau:
+        /// - Không có nhật ký nào trong khoảng ngày đang chọn.
+        /// - Có nhật ký, nhưng bộ lọc loại / từ khóa đã loại hết.
+        /// - Có tệp hoặc dòng không đọc được (bảng đang thiếu dữ liệu).
+        /// Nếu không nói rõ, người dùng sẽ tưởng chương trình không ghi được nhật ký.
+        /// </remarks>
+        private void ReportLoadResult()
+        {
+            string range = dtpFrom.Value.ToString("dd/MM/yyyy") + " – " + dtpTo.Value.ToString("dd/MM/yyyy");
+
+            if (logService.LastReadError.Length > 0 || logService.LastReadSkippedLines > 0)
+            {
+                string problem = string.Empty;
+
+                if (logService.LastReadError.Length > 0)
+                {
+                    problem += "Một số tệp không đọc được (thường do đang mở trong chương trình khác):" +
+                        Environment.NewLine + logService.LastReadError + Environment.NewLine + Environment.NewLine;
+                }
+
+                if (logService.LastReadSkippedLines > 0)
+                {
+                    problem += "Đã bỏ qua " + logService.LastReadSkippedLines.ToString("N0") +
+                        " dòng sai định dạng (tệp bị sửa tay hoặc chương trình bị tắt giữa lúc ghi)." +
+                        Environment.NewLine + Environment.NewLine;
+                }
+
                 MessageBox.Show(this,
-                    "Không đọc được tệp nhật ký:" + Environment.NewLine + logService.LogFilePath +
-                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
-                    "Lỗi",
+                    problem + "Bảng đang hiển thị " + loadedLogEntries.Count.ToString("N0") +
+                    " bản ghi đọc được.",
+                    "Nhật ký chưa đầy đủ",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (allLogEntries.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Không có nhật ký nào trong khoảng " + range + "." + Environment.NewLine +
+                    Environment.NewLine + "Thư mục nhật ký: " + logService.LogFolder,
+                    "Nhật ký trống",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            if (loadedLogEntries.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Không có bản ghi nào khớp với bộ lọc hiện tại." + Environment.NewLine +
+                    Environment.NewLine + "Khoảng " + range + " có " +
+                    allLogEntries.Count.ToString("N0") + " bản ghi. " +
+                    "Hãy thử xóa từ khóa tìm kiếm hoặc chọn lại \"Tất cả loại\".",
+                    "Không có dữ liệu phù hợp",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
         }
 
@@ -539,14 +639,46 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Bấm "Xóa log": xóa toàn bộ nội dung tệp nhật ký sau khi người dùng xác nhận.
+        /// Bấm "Xóa log": xóa toàn bộ tệp nhật ký sau khi người dùng xác nhận.
         /// </summary>
+        /// <remarks>
+        /// Xóa TẤT CẢ các ngày chứ không chỉ khoảng ngày đang xem, nên hộp thoại xác nhận
+        /// nói rõ số ngày và khoảng thời gian sẽ mất, tránh người dùng tưởng chỉ xóa phần
+        /// đang thấy trên bảng.
+        /// </remarks>
         private void btnClearLog_Click(object sender, EventArgs e)
         {
+            List<DateTime> days;
+            try
+            {
+                days = logService.GetAvailableDays();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "Không đọc được thư mục nhật ký:" + Environment.NewLine + logService.LogFolder +
+                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
+                    "Lỗi",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            if (days.Count == 0)
+            {
+                allLogEntries.Clear();
+                ApplyLogFilters();
+                return;
+            }
+
             DialogResult answer = MessageBox.Show(this,
-                "Xóa toàn bộ nhật ký đã ghi?" + Environment.NewLine +
-                Environment.NewLine + "Thao tác này không thể hoàn tác.",
-                "Xác nhận xóa",
+                "Xóa TOÀN BỘ nhật ký của " + days.Count.ToString("N0") + " ngày, từ " +
+                days[0].ToString("dd/MM/yyyy") + " đến " + days[days.Count - 1].ToString("dd/MM/yyyy") + "?" +
+                Environment.NewLine + Environment.NewLine +
+                "Không chỉ khoảng ngày đang xem trên bảng. Thao tác này không thể hoàn tác." +
+                Environment.NewLine + Environment.NewLine +
+                "Nếu cần giữ lại, hãy bấm \"Xuất log\" trước.",
+                "Xác nhận xóa nhật ký",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2);
@@ -558,19 +690,22 @@ namespace FileMonitorApps
 
             try
             {
-                logService.Clear();
-                allLogEntries.Clear();
-                ApplyLogFilters();
+                logService.ClearAll();
             }
             catch (Exception ex)
             {
+                // ClearAll đã xóa hết những tệp xóa được, chỉ báo những tệp còn sót.
                 MessageBox.Show(this,
-                    "Không xóa được tệp nhật ký:" + Environment.NewLine + logService.LogFilePath +
-                    Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
-                    "Lỗi",
+                    "Chưa xóa hết nhật ký." + Environment.NewLine + Environment.NewLine +
+                    ex.Message + Environment.NewLine + Environment.NewLine +
+                    "Hãy đóng các tệp đó (thường đang mở trong Excel hoặc Notepad) rồi xóa lại.",
+                    "Xóa chưa trọn vẹn",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                    MessageBoxIcon.Warning);
             }
+
+            // Đọc lại để bảng phản ánh đúng những gì còn trên đĩa, kể cả khi xóa không hết.
+            LoadLogFromDisk(false);
         }
 
         /// <summary>
@@ -595,15 +730,17 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Lọc lại danh sách theo cả ba tiêu chí (ngày, từ khóa, loại sự kiện)
+        /// Lọc lại danh sách theo cả ba tiêu chí (ngày, loại sự kiện, từ khóa)
         /// rồi hiển thị kết quả. Hàm này không hiện thông báo nào để người dùng
         /// gõ tìm kiếm mà không bị hộp thoại làm phiền.
         /// </summary>
+        /// <remarks>
+        /// Toàn bộ quy tắc lọc nằm ở LogFilter / LogService. Form chỉ đọc giá trị trên các
+        /// control, gói vào LogFilter và hiển thị kết quả.
+        /// </remarks>
         private void ApplyLogFilters()
         {
-            List<FileEventLog> result = FilterByDate(allLogEntries);
-            result = FilterByEventType(result);
-            result = FilterByKeyword(result);
+            List<FileEventLog> result = LogService.Filter(allLogEntries, BuildLogFilter());
 
             // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
             // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
@@ -615,83 +752,36 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Lọc theo loại sự kiện đang chọn. Mục "Tất cả loại" giữ nguyên danh sách.
+        /// Gói các điều kiện lọc đang chọn trên giao diện vào một đối tượng LogFilter.
         /// </summary>
-        private List<FileEventLog> FilterByEventType(List<FileEventLog> entries)
+        private LogFilter BuildLogFilter()
         {
-            List<FileEventLog> result = new List<FileEventLog>();
+            LogFilter filter = new LogFilter();
+            filter.FromDate = dtpFrom.Value;
+            filter.ToDate = dtpTo.Value;
+            filter.EventType = GetSelectedEventType();
+            filter.Keyword = txtSearch.Text;
+            return filter;
+        }
 
-            if (entries == null)
-            {
-                return result;
-            }
-
+        /// <summary>
+        /// Loại sự kiện đang chọn trong ComboBox, hoặc null nếu chọn "Tất cả loại".
+        /// </summary>
+        private FileEventType? GetSelectedEventType()
+        {
             FilterItem selected = cboEventTypeFilter.SelectedItem as FilterItem;
-            string eventType = selected != null ? selected.Pattern : string.Empty;
-
-            if (eventType.Length == 0)
+            if (selected == null || selected.Pattern.Length == 0)
             {
-                result.AddRange(entries);
-                return result;
+                return null;
             }
 
-            foreach (FileEventLog entry in entries)
+            FileEventType eventType;
+            if (Enum.TryParse(selected.Pattern, out eventType))
             {
-                if (string.Equals(entry.EventType.ToString(), eventType, StringComparison.OrdinalIgnoreCase))
-                {
-                    result.Add(entry);
-                }
+                return eventType;
             }
 
-            return result;
-        }
-
-        /// <summary>
-        /// Lọc theo từ khóa, so khớp với tên tệp hoặc đường dẫn.
-        /// </summary>
-        /// <remarks>
-        /// Dùng CurrentCultureIgnoreCase thay vì OrdinalIgnoreCase để so sánh
-        /// chữ hoa/chữ thường đúng với tiếng Việt có dấu.
-        /// </remarks>
-        private List<FileEventLog> FilterByKeyword(List<FileEventLog> entries)
-        {
-            List<FileEventLog> result = new List<FileEventLog>();
-
-            if (entries == null)
-            {
-                return result;
-            }
-
-            string keyword = txtSearch.Text.Trim();
-
-            if (keyword.Length == 0)
-            {
-                result.AddRange(entries);
-                return result;
-            }
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (Contains(entry.FileName, keyword) || Contains(entry.FullPath, keyword))
-                {
-                    result.Add(entry);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Kiểm tra chuỗi có chứa từ khóa hay không, bỏ qua phân biệt hoa/thường.
-        /// </summary>
-        private static bool Contains(string value, string keyword)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return false;
-            }
-
-            return value.IndexOf(keyword, StringComparison.CurrentCultureIgnoreCase) >= 0;
+            return null;
         }
 
         /// <summary>
@@ -720,36 +810,6 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Lọc danh sách nhật ký theo khoảng ngày đang chọn.
-        /// </summary>
-        /// <remarks>
-        /// Ngày kết thúc được lấy tới hết ngày (23:59:59) chứ không phải 00:00:00,
-        /// nếu không thì chọn "đến hôm nay" sẽ bỏ sót toàn bộ sự kiện của chính hôm nay.
-        /// </remarks>
-        private List<FileEventLog> FilterByDate(List<FileEventLog> entries)
-        {
-            List<FileEventLog> result = new List<FileEventLog>();
-
-            if (entries == null)
-            {
-                return result;
-            }
-
-            DateTime from = dtpFrom.Value.Date;
-            DateTime to = dtpTo.Value.Date.AddDays(1).AddTicks(-1);
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (entry.Time >= from && entry.Time <= to)
-                {
-                    result.Add(entry);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
         /// Không cho phép ngày bắt đầu vượt quá ngày kết thúc.
         /// Tự chỉnh lại thay vì hiện thông báo lỗi, để người dùng đỡ bị làm phiền.
         /// </summary>
@@ -760,7 +820,7 @@ namespace FileMonitorApps
                 dtpTo.Value = dtpFrom.Value.Date;
             }
 
-            ApplyLogFilters();
+            OnDateRangeChanged();
         }
 
         /// <summary>
@@ -773,7 +833,23 @@ namespace FileMonitorApps
                 dtpFrom.Value = dtpTo.Value.Date;
             }
 
-            ApplyLogFilters();
+            OnDateRangeChanged();
+        }
+
+        /// <summary>
+        /// Đổi khoảng ngày: nếu đã tải nhật ký thì đọc lại đúng các tệp của khoảng mới,
+        /// vì allLogEntries chỉ chứa dữ liệu của khoảng ngày cũ.
+        /// </summary>
+        private void OnDateRangeChanged()
+        {
+            if (logLoaded)
+            {
+                LoadLogFromDisk(false);
+            }
+            else
+            {
+                ApplyLogFilters();
+            }
         }
 
         /// <summary>
@@ -794,11 +870,25 @@ namespace FileMonitorApps
             {
                 foreach (FileEventLog entry in entries)
                 {
-                    dgvLogHistory.Rows.Add(
+                    int index = dgvLogHistory.Rows.Add(
                         entry.Time.ToString(DisplayTimeFormat),
                         entry.EventType.ToString(),
                         entry.FileName,
                         entry.FullPath);
+
+                    DataGridViewRow row = dgvLogHistory.Rows[index];
+
+                    // Cùng cách tô màu với bảng ở tab Giám sát để hai bảng đọc giống nhau.
+                    Color color = GetEventTypeColor(entry.EventType);
+                    row.Cells[1].Style.BackColor = color;
+                    row.Cells[1].Style.SelectionBackColor = color;
+                    row.Cells[1].Style.SelectionForeColor = SystemColors.ControlText;
+
+                    // Bảng chỉ có 4 cột; tên cũ của sự kiện đổi tên đưa vào chú thích.
+                    if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
+                    {
+                        row.Cells[3].ToolTipText = "Tên cũ: " + entry.OldFullPath;
+                    }
                 }
             }
             finally
@@ -836,6 +926,7 @@ namespace FileMonitorApps
                 }
                 eventCounter.Reset();
                 overflowCount = 0;
+                writeFailuresAtSessionStart = logService.WriteFailureCount;
                 flushCount = 0;
                 UpdateEventCount();
 
@@ -947,12 +1038,15 @@ namespace FileMonitorApps
 
             try
             {
-                logService.Append(e.Entry);
+                // TryAppend không ném ngoại lệ với các lỗi đĩa thường gặp (đĩa đầy, thiếu quyền,
+                // tệp bị khóa): nó trả về false và ghi nhận lỗi vào WriteFailureCount /
+                // LastWriteError. Nhãn trạng thái đọc hai giá trị đó để báo cho người dùng.
+                logService.TryAppend(e.Entry);
             }
             catch (Exception)
             {
-                // Không ghi được nhật ký (đĩa đầy, tệp đang bị khóa...) thì vẫn phải
-                // hiển thị sự kiện lên bảng, không được để luồng sự kiện chết theo.
+                // Lưới an toàn cuối cùng cho lỗi không lường trước: đang ở luồng nền của
+                // FileSystemWatcher, một ngoại lệ lọt ra ngoài sẽ làm sập cả chương trình.
             }
 
             // Form có thể đã đóng trong lúc sự kiện đang trên đường tới.
@@ -1040,6 +1134,9 @@ namespace FileMonitorApps
 
             UpdateEventCount();
             UpdateButtonStates();
+
+            // Có thể vừa có lần ghi nhật ký thất bại, cập nhật nhãn trạng thái cho kịp.
+            UpdateStatusLabel();
         }
 
         /// <summary>
@@ -1247,6 +1344,29 @@ namespace FileMonitorApps
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
                 toolTipMain.SetToolTip(lblStatus, string.Empty);
+                return;
+            }
+
+            int writeFailures = logService.WriteFailureCount - writeFailuresAtSessionStart;
+
+            if (writeFailures > 0)
+            {
+                // Màu đỏ: nghiêm trọng hơn tràn bộ đệm, vì sự kiện vẫn hiện trên bảng nhưng
+                // KHÔNG được lưu lại — tắt chương trình là mất.
+                string text = "● Đang giám sát — lỗi ghi nhật ký " + writeFailures.ToString("N0") + " lần";
+                if (overflowCount > 0)
+                {
+                    text += ", bỏ sót " + overflowCount.ToString("N0") + " lần";
+                }
+
+                lblStatus.Text = text;
+                lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
+                toolTipMain.SetToolTip(lblStatus,
+                    writeFailures.ToString("N0") + " sự kiện không ghi được xuống tệp nhật ký." +
+                    Environment.NewLine + "Lỗi gần nhất: " + logService.LastWriteError +
+                    Environment.NewLine + Environment.NewLine +
+                    "Thư mục nhật ký: " + logService.LogFolder + Environment.NewLine +
+                    "Hãy kiểm tra dung lượng ổ đĩa và quyền ghi vào thư mục này.");
                 return;
             }
 
