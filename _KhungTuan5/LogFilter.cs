@@ -38,10 +38,13 @@ namespace FileMonitorApps
 
         public LogFilter()
         {
-            // TODO (bước 1): đặt giá trị mặc định
-            //   - FromDate = 7 ngày trước, ToDate = hôm nay (khớp với InitDateFilter của MainForm)
-            //   - EventType = null
-            //   - Keyword = chuỗi rỗng (không để null, đỡ phải kiểm tra null ở khắp nơi)
+            // Mặc định khớp với InitDateFilter của MainForm: 7 ngày gần nhất, mọi loại.
+            FromDate = DateTime.Today.AddDays(-7);
+            ToDate = DateTime.Today;
+            EventType = null;
+
+            // Để chuỗi rỗng thay vì null, đỡ phải kiểm tra null ở khắp nơi.
+            Keyword = string.Empty;
         }
 
         /// <summary>
@@ -53,11 +56,60 @@ namespace FileMonitorApps
         /// </remarks>
         public bool Matches(FileEventLog entry)
         {
-            // TODO (bước 2): trả về false nếu entry == null
-            // TODO (bước 3): kiểm tra khoảng ngày
+            if (entry == null)
+            {
+                return false;
+            }
+
+            // Kiểm tra loại sự kiện TRƯỚC: đây là phép so sánh rẻ nhất (so hai số nguyên),
+            // loại được nhiều bản ghi nhất ngay từ đầu nên các phép so chuỗi phía sau ít phải chạy.
+            return MatchesEventType(entry)
+                && MatchesDate(entry)
+                && MatchesKeyword(entry);
+        }
+
+        /// <summary>
+        /// Bản ghi có đúng loại sự kiện đang lọc hay không.
+        /// EventType = null nghĩa là "Tất cả loại", mọi bản ghi đều khớp.
+        /// </summary>
+        /// <remarks>
+        /// So sánh trực tiếp hai giá trị enum chứ không đổi ra chuỗi rồi so như code cũ
+        /// trong MainForm (entry.EventType.ToString() == "Created"): so enum là so số nguyên,
+        /// nhanh hơn, và gõ sai tên loại sẽ bị trình biên dịch bắt ngay thay vì âm thầm
+        /// không khớp bản ghi nào.
+        /// </remarks>
+        public bool MatchesEventType(FileEventLog entry)
+        {
+            if (entry == null)
+            {
+                return false;
+            }
+
+            if (!EventType.HasValue)
+            {
+                return true;
+            }
+
+            return entry.EventType == EventType.Value;
+        }
+
+        /// <summary>
+        /// Bản ghi có nằm trong khoảng ngày đang lọc hay không.
+        /// </summary>
+        public bool MatchesDate(FileEventLog entry)
+        {
+            // TODO (bước 3):
             //   - from = FromDate.Date
             //   - to   = ToDate.Date.AddDays(1).AddTicks(-1)   // hết ngày, xem FilterByDate cũ
-            // TODO (bước 4): nếu EventType có giá trị thì so với entry.EventType
+            //   - return entry.Time >= from && entry.Time <= to;
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Tên tệp hoặc đường dẫn có chứa từ khóa hay không. Từ khóa rỗng thì khớp tất cả.
+        /// </summary>
+        public bool MatchesKeyword(FileEventLog entry)
+        {
             // TODO (bước 5): nếu Keyword khác rỗng thì tìm trong FileName hoặc FullPath,
             //   dùng IndexOf(..., StringComparison.CurrentCultureIgnoreCase) như code cũ
             throw new NotImplementedException();

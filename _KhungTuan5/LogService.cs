@@ -11,7 +11,7 @@ namespace FileMonitorApps
     /// Ghi, đọc, tìm kiếm, lọc và xuất nhật ký giám sát.
     /// </summary>
     /// <remarks>
-    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5 và bước 8).
+    /// KHUNG TUẦN 5 — đã xong phần tạo thư mục, tệp theo ngày, ghi và đọc (bước 1–5, bước 8 và lọc theo loại sự kiện của bước 6).
     /// Các phương thức còn TODO vẫn ném NotImplementedException; làm theo thứ tự số bước.
     ///
     /// Thay đổi so với bản LogService hiện tại:
@@ -585,20 +585,110 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Lọc một danh sách có sẵn trong bộ nhớ, không đụng tới đĩa.
+        /// Lọc một danh sách có sẵn trong bộ nhớ theo mọi điều kiện của filter,
+        /// không đụng tới đĩa.
         /// </summary>
         /// <remarks>
-        /// Tách riêng để MainForm dùng khi người dùng gõ tìm kiếm: lọc lại trên danh sách
-        /// đã tải, không đọc lại tệp mỗi lần nhấn phím. Hàm tĩnh, kiểm thử được độc lập.
+        /// Tách riêng để MainForm dùng khi người dùng gõ tìm kiếm hoặc đổi ComboBox:
+        /// lọc lại trên danh sách đã tải, không đọc lại tệp mỗi lần thay đổi.
+        /// Hàm tĩnh, kiểm thử được độc lập.
+        ///
+        /// Chạy được khi LogFilter.Matches đã làm xong cả phần lọc ngày và từ khóa.
         /// </remarks>
         public static List<FileEventLog> Filter(IEnumerable<FileEventLog> entries, LogFilter filter)
         {
-            // TODO (bước 6):
-            //   - entries == null → danh sách rỗng
-            //   - filter == null → trả về bản sao của entries
-            //   - ngược lại: giữ những entry có filter.Matches(entry) == true
-            //   Trả về List MỚI, không sửa danh sách đầu vào.
-            throw new NotImplementedException();
+            List<FileEventLog> result = new List<FileEventLog>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                // filter == null nghĩa là không lọc gì: trả về bản sao đầy đủ.
+                if (filter == null || filter.Matches(entry))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Lọc theo loại sự kiện. eventType = null nghĩa là lấy tất cả các loại.
+        /// </summary>
+        /// <param name="entries">Danh sách cần lọc. Không bị sửa.</param>
+        /// <param name="eventType">Loại cần lấy, hoặc null cho "Tất cả loại".</param>
+        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
+        /// <remarks>
+        /// Dùng lại đúng quy tắc của LogFilter.MatchesEventType, để lọc riêng theo loại
+        /// và lọc tổng hợp qua Filter() không bao giờ cho hai kết quả khác nhau.
+        ///
+        /// Luôn trả về danh sách mới, kể cả khi không lọc gì: bên gọi có thể Reverse()
+        /// hay Clear() kết quả mà không làm hỏng danh sách gốc (allLogEntries trong MainForm).
+        /// </remarks>
+        public static List<FileEventLog> FilterByEventType(IEnumerable<FileEventLog> entries,
+            FileEventType? eventType)
+        {
+            List<FileEventLog> result = new List<FileEventLog>();
+
+            if (entries == null)
+            {
+                return result;
+            }
+
+            LogFilter filter = new LogFilter();
+            filter.EventType = eventType;
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (filter.MatchesEventType(entry))
+                {
+                    result.Add(entry);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Đếm số bản ghi của từng loại trong một danh sách.
+        /// </summary>
+        /// <remarks>
+        /// Dùng để hiện số lượng ngay trong ComboBox lọc, ví dụ "Deleted — Xóa (12)",
+        /// giúp người dùng biết trước chọn loại nào thì ra bao nhiêu dòng.
+        /// Mọi loại đều có mặt trong kết quả, kể cả loại bằng 0.
+        /// </remarks>
+        public static Dictionary<FileEventType, int> CountByEventType(IEnumerable<FileEventLog> entries)
+        {
+            Dictionary<FileEventType, int> counts = new Dictionary<FileEventType, int>();
+
+            foreach (FileEventType eventType in FileEventTypeHelper.GetAll())
+            {
+                counts[eventType] = 0;
+            }
+
+            if (entries == null)
+            {
+                return counts;
+            }
+
+            foreach (FileEventLog entry in entries)
+            {
+                if (entry != null && counts.ContainsKey(entry.EventType))
+                {
+                    counts[entry.EventType]++;
+                }
+            }
+
+            return counts;
         }
 
         #endregion
