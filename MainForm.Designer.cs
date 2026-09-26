@@ -69,8 +69,8 @@
             this.colLogFileName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colLogFullPath = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
-            this.toolTipMain = new System.Windows.Forms.ToolTip(this.components);
+            this.dlgExportLog = new System.Windows.Forms.SaveFileDialog();
+            this.ttpMain = new System.Windows.Forms.ToolTip(this.components);
             this.txtSearch = new System.Windows.Forms.TextBox();
             this.cboEventTypeFilter = new System.Windows.Forms.ComboBox();
             this.lblFrom = new System.Windows.Forms.Label();
@@ -78,7 +78,7 @@
             this.lblTo = new System.Windows.Forms.Label();
             this.dtpTo = new System.Windows.Forms.DateTimePicker();
             this.tabLog = new System.Windows.Forms.TabPage();
-            this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
+            this.dlgBrowseFolder = new System.Windows.Forms.FolderBrowserDialog();
             ((System.ComponentModel.ISupportInitialize)(this.dgvEvents)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvLogHistory)).BeginInit();
             this.tabLog.SuspendLayout();
@@ -215,7 +215,7 @@
             this.btnClearView.TabIndex = 11;
             this.btnClearView.Text = "Xóa danh sách";
             this.btnClearView.UseVisualStyleBackColor = true;
-            this.toolTipMain.SetToolTip(this.btnClearView, "Chỉ xóa danh sách đang hiển thị." +
+            this.ttpMain.SetToolTip(this.btnClearView, "Chỉ xóa danh sách đang hiển thị." +
                 " Nhật ký đã ghi trong tệp vẫn còn nguyên, xem lại ở tab Nhật ký.");
             this.btnClearView.Click += new System.EventHandler(this.btnClearView_Click);
             //
@@ -480,16 +480,16 @@
             this.colLogFullPath.Name = "colLogFullPath";
             this.colLogFullPath.ReadOnly = true;
             //
-            // saveFileDialog
+            // dlgExportLog
             //
-            this.saveFileDialog.DefaultExt = "csv";
-            this.saveFileDialog.Filter = "Tệp CSV (*.csv)|*.csv|Tất cả các tệp (*.*)|*.*";
-            this.saveFileDialog.Title = "Xuất nhật ký ra tệp CSV";
+            this.dlgExportLog.DefaultExt = "csv";
+            this.dlgExportLog.Filter = "Tệp CSV (*.csv)|*.csv|Tất cả các tệp (*.*)|*.*";
+            this.dlgExportLog.Title = "Xuất nhật ký ra tệp CSV";
             //
-            // folderBrowserDialog
+            // dlgBrowseFolder
             //
-            this.folderBrowserDialog.Description = "Chọn thư mục cần giám sát thay đổi tệp tin:";
-            this.folderBrowserDialog.ShowNewFolderButton = false;
+            this.dlgBrowseFolder.Description = "Chọn thư mục cần giám sát thay đổi tệp tin:";
+            this.dlgBrowseFolder.ShowNewFolderButton = false;
             //
             // MainForm
             //
@@ -545,14 +545,14 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFileName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogSize;
         private System.Windows.Forms.DataGridViewTextBoxColumn colLogFullPath;
-        private System.Windows.Forms.SaveFileDialog saveFileDialog;
-        private System.Windows.Forms.ToolTip toolTipMain;
+        private System.Windows.Forms.SaveFileDialog dlgExportLog;
+        private System.Windows.Forms.ToolTip ttpMain;
         private System.Windows.Forms.TextBox txtSearch;
         private System.Windows.Forms.ComboBox cboEventTypeFilter;
         private System.Windows.Forms.Label lblFrom;
         private System.Windows.Forms.DateTimePicker dtpFrom;
         private System.Windows.Forms.Label lblTo;
         private System.Windows.Forms.DateTimePicker dtpTo;
-        private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
+        private System.Windows.Forms.FolderBrowserDialog dlgBrowseFolder;
     }
 }

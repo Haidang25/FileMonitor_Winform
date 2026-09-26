@@ -32,15 +32,6 @@ namespace FileMonitorApps
             get { return Error is InternalBufferOverflowException; }
         }
 
-        /// <summary>
-        /// true nếu thư mục đang giám sát không còn tồn tại (bị xóa, đổi tên, di chuyển,
-        /// bỏ vào Thùng rác, hoặc ổ USB/ổ mạng chứa nó bị ngắt).
-        /// </summary>
-        public bool IsFolderLost
-        {
-            get { return Error is DirectoryNotFoundException; }
-        }
-
         /// <param name="error">Ngoại lệ gây ra sự cố, có thể null.</param>
         public MonitorErrorEventArgs(Exception error)
         {
@@ -139,36 +130,6 @@ namespace FileMonitorApps
         /// </summary>
         public event EventHandler<MonitorErrorEventArgs> ErrorOccurred;
 
-        /// <summary>Đang theo dõi hay không.</summary>
-        public bool IsRunning
-        {
-            get { return watcher != null && watcher.EnableRaisingEvents; }
-        }
-
-        /// <summary>Thư mục đang theo dõi, chuỗi rỗng nếu chưa chạy.</summary>
-        public string FolderPath
-        {
-            get { return watcher != null ? watcher.Path : string.Empty; }
-        }
-
-        /// <summary>Mẫu lọc đang áp dụng, chuỗi rỗng nếu chưa chạy.</summary>
-        public string Filter
-        {
-            get { return watcher != null ? watcher.Filter : string.Empty; }
-        }
-
-        /// <summary>Có theo dõi cả thư mục con hay không.</summary>
-        public bool IncludeSubdirectories
-        {
-            get { return watcher != null && watcher.IncludeSubdirectories; }
-        }
-
-        /// <summary>Kích thước bộ đệm đang dùng, 0 nếu chưa chạy.</summary>
-        public int BufferSize
-        {
-            get { return watcher != null ? watcher.InternalBufferSize : 0; }
-        }
-
         #region Bật / tắt theo dõi
 
         /// <summary>
@@ -187,7 +148,7 @@ namespace FileMonitorApps
                 throw new ObjectDisposedException("FileMonitorService");
             }
 
-            if (string.IsNullOrEmpty(folderPath) || folderPath.Trim().Length == 0)
+            if (string.IsNullOrWhiteSpace(folderPath))
             {
                 throw new ArgumentException("Chưa chỉ định thư mục cần theo dõi.", "folderPath");
             }

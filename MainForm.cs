@@ -50,34 +50,23 @@ namespace FileMonitorApps
         private int flushScheduled;
 
         /// <summary>
-        /// Số lượt cập nhật giao diện đã thực hiện. Chỉ dùng để kiểm chứng hiệu quả gộp.
-        /// </summary>
-        private int flushCount;
-
-        /// <summary>
         /// Số dòng tối đa giữ lại trên bảng sự kiện. Toàn bộ vẫn nằm trong tệp nhật ký.
         /// Không giới hạn thì một thư mục hoạt động mạnh sẽ làm bảng phình ra vô hạn.
         /// </summary>
         private const int MaxDisplayedEvents = 5000;
 
         /// <summary>
-        /// Đang trong phiên giám sát hay không. Giữ thành một trường riêng để
-        /// mọi nơi cần bật/tắt nút đều đọc từ cùng một nguồn trạng thái.
-        /// </summary>
-        private bool isMonitoring;
-
-        /// <summary>
         /// Danh sách nhật ký đang hiển thị ở tab Nhật ký.
         /// Giữ lại để xuất ra CSV đúng những gì người dùng đang thấy.
         /// </summary>
-        private List<FileEventLog> loadedLogEntries = new List<FileEventLog>();
+        private List<FileEventLog> displayedLogEntries = new List<FileEventLog>();
 
         /// <summary>
         /// Nhật ký của khoảng ngày đang chọn, đọc từ tệp, chưa lọc theo loại và từ khóa.
         /// Nhờ vậy khi người dùng gõ tìm kiếm hoặc đổi bộ lọc thì chỉ cần lọc lại
         /// trên bộ nhớ, không phải đọc lại tệp mỗi lần nhấn phím.
         /// </summary>
-        private List<FileEventLog> allLogEntries = new List<FileEventLog>();
+        private List<FileEventLog> logEntriesInRange = new List<FileEventLog>();
 
         /// <summary>
         /// Người dùng đã bấm "Tải log" ít nhất một lần chưa. Từ lúc đó, đổi khoảng ngày
@@ -116,7 +105,7 @@ namespace FileMonitorApps
             colLogSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             LoadFileFilters();
             UpdateEventCount();
-            SetMonitoringState(false);
+            RefreshMonitoringState();
             InitDateFilter();
             LoadEventTypeFilters();
             SetCueBanner(txtSearch, "Tìm theo tên tệp hoặc đường dẫn (không cần dấu)...");
@@ -154,16 +143,16 @@ namespace FileMonitorApps
                 string currentPath = txtFolderPath.Text.Trim();
                 if (currentPath.Length > 0 && Directory.Exists(currentPath))
                 {
-                    folderBrowserDialog.SelectedPath = currentPath;
+                    dlgBrowseFolder.SelectedPath = currentPath;
                 }
 
-                if (folderBrowserDialog.ShowDialog(this) == DialogResult.OK)
+                if (dlgBrowseFolder.ShowDialog(this) == DialogResult.OK)
                 {
                     string normalizedPath;
 
                     // Người dùng vẫn có thể chọn thư mục mà tài khoản hiện tại không đọc được
                     // (ví dụ C:\\System Volume Information), nên phải kiểm tra trước khi nhận.
-                    if (TryValidateFolder(folderBrowserDialog.SelectedPath, false, out normalizedPath))
+                    if (TryValidateFolder(dlgBrowseFolder.SelectedPath, false, out normalizedPath))
                     {
                         txtFolderPath.Text = normalizedPath;
                     }
@@ -253,7 +242,13 @@ namespace FileMonitorApps
         #region Tab Nhật ký
 
         /// <summary>Định dạng thời gian hiển thị trong bảng nhật ký.</summary>
-        private const string DisplayTimeFormat = "dd/MM/yyyy HH:mm:ss";
+        private const string LogTimeFormat = "dd/MM/yyyy HH:mm:ss";
+
+        /// <summary>
+        /// Định dạng thời gian ở bảng tab Giám sát: chỉ giờ, vì bảng này chỉ chứa sự kiện
+        /// của phiên đang chạy (thường trong cùng một ngày).
+        /// </summary>
+        private const string EventTimeFormat = "HH:mm:ss";
 
         /// <summary>
         /// Bấm "Tải log": đọc nhật ký của khoảng ngày đang chọn và đổ vào bảng.
@@ -280,7 +275,7 @@ namespace FileMonitorApps
         {
             try
             {
-                allLogEntries = logService.ReadRange(dtpFrom.Value, dtpTo.Value);
+                logEntriesInRange = logService.ReadRange(dtpFrom.Value, dtpTo.Value);
                 logLoaded = true;
             }
             catch (Exception ex)
@@ -339,7 +334,7 @@ namespace FileMonitorApps
                 }
 
                 MessageBox.Show(this,
-                    problem + "Bảng đang hiển thị " + loadedLogEntries.Count.ToString("N0") +
+                    problem + "Bảng đang hiển thị " + displayedLogEntries.Count.ToString("N0") +
                     " bản ghi đọc được.",
                     "Nhật ký chưa đầy đủ",
                     MessageBoxButtons.OK,
@@ -347,7 +342,7 @@ namespace FileMonitorApps
                 return;
             }
 
-            if (allLogEntries.Count == 0)
+            if (logEntriesInRange.Count == 0)
             {
                 MessageBox.Show(this,
                     "Không có nhật ký nào trong khoảng " + range + "." + Environment.NewLine +
@@ -358,12 +353,12 @@ namespace FileMonitorApps
                 return;
             }
 
-            if (loadedLogEntries.Count == 0)
+            if (displayedLogEntries.Count == 0)
             {
                 MessageBox.Show(this,
                     "Không có bản ghi nào khớp với bộ lọc hiện tại." + Environment.NewLine +
                     Environment.NewLine + "Khoảng " + range + " có " +
-                    allLogEntries.Count.ToString("N0") + " bản ghi. " +
+                    logEntriesInRange.Count.ToString("N0") + " bản ghi. " +
                     "Hãy thử xóa từ khóa tìm kiếm hoặc chọn lại \"Tất cả loại\".",
                     "Không có dữ liệu phù hợp",
                     MessageBoxButtons.OK,
@@ -387,13 +382,13 @@ namespace FileMonitorApps
         /// Bấm "Xuất log": cho người dùng chọn nơi lưu, rồi ghi danh sách đang hiển thị ra tệp CSV.
         /// </summary>
         /// <remarks>
-        /// Xuất đúng loadedLogEntries — những gì đang thấy trên bảng sau khi đã lọc —
+        /// Xuất đúng displayedLogEntries — những gì đang thấy trên bảng sau khi đã lọc —
         /// chứ không phải toàn bộ nhật ký. Người dùng lọc ra 12 dòng thì tệp có 12 dòng.
         /// </remarks>
         private void btnExportLog_Click(object sender, EventArgs e)
         {
             // Nút đã bị làm mờ khi không có dữ liệu, đây chỉ là chốt chặn phòng xa.
-            if (loadedLogEntries.Count == 0)
+            if (displayedLogEntries.Count == 0)
             {
                 return;
             }
@@ -410,7 +405,7 @@ namespace FileMonitorApps
             Cursor.Current = Cursors.WaitCursor;
             try
             {
-                exported = logService.ExportCsv(destinationPath, loadedLogEntries, separator);
+                exported = logService.ExportCsv(destinationPath, displayedLogEntries, separator);
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -473,35 +468,35 @@ namespace FileMonitorApps
             destinationPath = string.Empty;
             separator = LogService.DefaultCsvSeparator;
 
-            saveFileDialog.Title = "Xuất nhật ký ra tệp CSV";
-            saveFileDialog.Filter =
+            dlgExportLog.Title = "Xuất nhật ký ra tệp CSV";
+            dlgExportLog.Filter =
                 "CSV phân cách bằng dấu chấm phẩy — Excel đặt vùng Việt Nam (*.csv)|*.csv|" +
                 "CSV phân cách bằng dấu phẩy — chuẩn quốc tế (*.csv)|*.csv";
-            saveFileDialog.FilterIndex = LogService.GetPreferredCsvSeparator() == ';'
+            dlgExportLog.FilterIndex = LogService.GetPreferredCsvSeparator() == ';'
                 ? ExportFormatSemicolon
                 : ExportFormatComma;
-            saveFileDialog.DefaultExt = "csv";
-            saveFileDialog.AddExtension = true;
-            saveFileDialog.OverwritePrompt = true;
-            saveFileDialog.CheckPathExists = true;
+            dlgExportLog.DefaultExt = "csv";
+            dlgExportLog.AddExtension = true;
+            dlgExportLog.OverwritePrompt = true;
+            dlgExportLog.CheckPathExists = true;
 
             // Không cho hộp thoại đổi thư mục làm việc hiện tại của chương trình.
-            saveFileDialog.RestoreDirectory = true;
+            dlgExportLog.RestoreDirectory = true;
 
-            saveFileDialog.InitialDirectory = Directory.Exists(lastExportFolder)
+            dlgExportLog.InitialDirectory = Directory.Exists(lastExportFolder)
                 ? lastExportFolder
                 : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
-            saveFileDialog.FileName = LogService.BuildExportFileName(
+            dlgExportLog.FileName = LogService.BuildExportFileName(
                 dtpFrom.Value, dtpTo.Value, GetSelectedEventType());
 
-            if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+            if (dlgExportLog.ShowDialog(this) != DialogResult.OK)
             {
                 return false;
             }
 
-            destinationPath = LogService.EnsureCsvExtension(saveFileDialog.FileName);
-            separator = saveFileDialog.FilterIndex == ExportFormatSemicolon ? ';' : ',';
+            destinationPath = LogService.EnsureCsvExtension(dlgExportLog.FileName);
+            separator = dlgExportLog.FilterIndex == ExportFormatSemicolon ? ';' : ',';
             return true;
         }
 
@@ -563,7 +558,7 @@ namespace FileMonitorApps
 
             if (days.Count == 0)
             {
-                allLogEntries.Clear();
+                logEntriesInRange.Clear();
                 ApplyLogFilters();
                 return;
             }
@@ -637,13 +632,13 @@ namespace FileMonitorApps
         /// </remarks>
         private void ApplyLogFilters()
         {
-            List<FileEventLog> result = LogService.Filter(allLogEntries, BuildLogFilter());
+            List<FileEventLog> result = LogService.Filter(logEntriesInRange, BuildLogFilter());
 
             // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
             // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
             result.Reverse();
 
-            loadedLogEntries = result;
+            displayedLogEntries = result;
             ShowLogEntries(result);
             UpdateButtonStates();
         }
@@ -735,7 +730,7 @@ namespace FileMonitorApps
 
         /// <summary>
         /// Đổi khoảng ngày: nếu đã tải nhật ký thì đọc lại đúng các tệp của khoảng mới,
-        /// vì allLogEntries chỉ chứa dữ liệu của khoảng ngày cũ.
+        /// vì logEntriesInRange chỉ chứa dữ liệu của khoảng ngày cũ.
         /// </summary>
         private void OnDateRangeChanged()
         {
@@ -768,7 +763,7 @@ namespace FileMonitorApps
                 foreach (FileEventLog entry in entries)
                 {
                     int index = dgvLogHistory.Rows.Add(
-                        entry.Time.ToString(DisplayTimeFormat),
+                        entry.Time.ToString(LogTimeFormat),
                         entry.EventType.ToString(),
                         entry.FileName,
                         GetSizeText(entry),
@@ -819,16 +814,14 @@ namespace FileMonitorApps
                 {
                     pendingEvents.Clear();
                 }
-                flushCount = 0;
-
                 // Session tự đặt lại bộ đếm và dọn sạch nếu khởi động thất bại.
                 session.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
                 UpdateEventCount();
-                SetMonitoringState(true);
+                RefreshMonitoringState();
             }
             catch (Exception ex)
             {
-                SetMonitoringState(false);
+                RefreshMonitoringState();
 
                 MessageBox.Show(this,
                     "Không thể bắt đầu giám sát thư mục:" + Environment.NewLine + folderPath +
@@ -852,7 +845,7 @@ namespace FileMonitorApps
             // các thay đổi cuối cùng trước khi dừng sẽ không bao giờ hiện ra.
             FlushPendingEvents();
 
-            SetMonitoringState(false);
+            RefreshMonitoringState();
         }
 
         /// <summary>
@@ -934,8 +927,6 @@ namespace FileMonitorApps
             {
                 return;
             }
-
-            flushCount++;
 
             // Ghi lại chỗ người dùng đang xem TRƯỚC khi chèn thêm dòng.
             // Dòng mới được chèn lên đầu bảng nên mọi dòng cũ bị đẩy xuống; nếu không
@@ -1043,7 +1034,7 @@ namespace FileMonitorApps
             // Chèn lên đầu để thay đổi mới nhất luôn nhìn thấy ngay, không phải cuộn xuống.
             dgvEvents.Rows.Insert(0, new object[]
             {
-                entry.Time.ToString("HH:mm:ss"),
+                entry.Time.ToString(EventTimeFormat),
                 entry.EventType.ToString(),
                 entry.FileName,
                 GetSizeText(entry),
@@ -1106,7 +1097,7 @@ namespace FileMonitorApps
             {
                 // Đưa nốt những thay đổi đã bắt được trước sự cố lên bảng, không để mất.
                 FlushPendingEvents();
-                SetMonitoringState(false);
+                RefreshMonitoringState();
 
                 MessageBox.Show(this,
                     "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
@@ -1154,12 +1145,16 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Cập nhật giao diện theo trạng thái đang giám sát hay đang nghỉ.
+        /// Cập nhật giao diện theo trạng thái của phiên giám sát (đang chạy hay đang nghỉ).
         /// </summary>
-        /// <param name="isMonitoring">true khi bộ theo dõi đang chạy.</param>
-        private void SetMonitoringState(bool monitoring)
+        /// <remarks>
+        /// Đọc trạng thái trực tiếp từ session.IsRunning thay vì giữ một biến riêng trong Form:
+        /// chỉ có MỘT nguồn sự thật, nên giao diện không bao giờ lệch với phần lõi
+        /// (ví dụ phiên đã tự dừng do sự cố mà Form vẫn tưởng đang chạy).
+        /// </remarks>
+        private void RefreshMonitoringState()
         {
-            isMonitoring = monitoring;
+            bool isMonitoring = session.IsRunning;
 
             // Khóa phần cấu hình trong lúc đang chạy, nếu không cấu hình hiển thị
             // sẽ không còn khớp với cấu hình mà phần lõi đang thực sự dùng.
@@ -1177,7 +1172,7 @@ namespace FileMonitorApps
         /// </summary>
         private void UpdateStatusLabel()
         {
-            if (!isMonitoring)
+            if (!session.IsRunning)
             {
                 string stopReason = session.LastFaultReason;
                 if (stopReason.Length > 0)
@@ -1186,7 +1181,7 @@ namespace FileMonitorApps
                     // Giữ nguyên cho tới lần bắt đầu tiếp theo, không tự biến mất.
                     lblStatus.Text = "● Lỗi — đã dừng: " + stopReason;
                     lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
-                    toolTipMain.SetToolTip(lblStatus,
+                    ttpMain.SetToolTip(lblStatus,
                         "Giám sát đã tự dừng vì " + stopReason + "." + Environment.NewLine +
                         "Thư mục: " + txtFolderPath.Text);
                     return;
@@ -1194,7 +1189,7 @@ namespace FileMonitorApps
 
                 lblStatus.Text = "● Chưa giám sát";
                 lblStatus.ForeColor = Color.Gray;
-                toolTipMain.SetToolTip(lblStatus, string.Empty);
+                ttpMain.SetToolTip(lblStatus, string.Empty);
                 return;
             }
 
@@ -1213,7 +1208,7 @@ namespace FileMonitorApps
 
                 lblStatus.Text = text;
                 lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
-                toolTipMain.SetToolTip(lblStatus,
+                ttpMain.SetToolTip(lblStatus,
                     writeFailures.ToString("N0") + " sự kiện không ghi được xuống tệp nhật ký." +
                     Environment.NewLine + "Lỗi gần nhất: " + session.LastWriteError +
                     Environment.NewLine + Environment.NewLine +
@@ -1227,7 +1222,7 @@ namespace FileMonitorApps
                 // Màu cam: vẫn đang chạy nhưng dữ liệu không còn đầy đủ.
                 lblStatus.Text = "● Đang giám sát — bỏ sót " + overflowCount.ToString("N0") + " lần";
                 lblStatus.ForeColor = Color.FromArgb(200, 100, 0);
-                toolTipMain.SetToolTip(lblStatus,
+                ttpMain.SetToolTip(lblStatus,
                     "Bộ đệm của hệ điều hành đã bị tràn " + overflowCount.ToString("N0") + " lần." +
                     Environment.NewLine +
                     "Một số thay đổi trong những khoảng đó không được ghi nhận." +
@@ -1239,7 +1234,7 @@ namespace FileMonitorApps
 
             lblStatus.Text = "● Đang giám sát";
             lblStatus.ForeColor = Color.FromArgb(16, 124, 16);
-            toolTipMain.SetToolTip(lblStatus, "Đang theo dõi bình thường, chưa bỏ sót thay đổi nào.");
+            ttpMain.SetToolTip(lblStatus, "Đang theo dõi bình thường, chưa bỏ sót thay đổi nào.");
         }
 
         /// <summary>
@@ -1253,6 +1248,7 @@ namespace FileMonitorApps
         private void UpdateButtonStates()
         {
             // Chỉ bắt đầu được khi đang rảnh và đã có đường dẫn.
+            bool isMonitoring = session.IsRunning;
             btnStart.Enabled = !isMonitoring && txtFolderPath.Text.Trim().Length > 0;
             btnStop.Enabled = isMonitoring;
 
@@ -1260,11 +1256,11 @@ namespace FileMonitorApps
             btnClearView.Enabled = dgvEvents.Rows.Count > 0;
 
             // Chỉ xuất được thứ đang hiển thị trên bảng.
-            btnExportLog.Enabled = loadedLogEntries.Count > 0;
+            btnExportLog.Enabled = displayedLogEntries.Count > 0;
 
             // Buộc phải bấm "Tải log" trước khi xóa, để người dùng nhìn thấy
             // mình sắp xóa cái gì. Xóa nhật ký là thao tác không hoàn tác được.
-            btnClearLog.Enabled = allLogEntries.Count > 0;
+            btnClearLog.Enabled = logEntriesInRange.Count > 0;
         }
 
         /// <summary>
@@ -1343,7 +1339,7 @@ namespace FileMonitorApps
         /// Đổi số byte thành dạng dễ đọc: 512 B, 1,5 KB, 3,2 MB...
         /// Dùng định dạng số của máy người dùng (dấu thập phân là dấu phẩy với máy tiếng Việt).
         /// </summary>
-        internal static string FormatSize(long bytes)
+        private static string FormatSize(long bytes)
         {
             string[] units = { "B", "KB", "MB", "GB", "TB" };
             double value = bytes;
@@ -1405,7 +1401,7 @@ namespace FileMonitorApps
             }
 
             lblEventCount.Text = text;
-            toolTipMain.SetToolTip(lblEventCount, counter.ToDetailedSummary());
+            ttpMain.SetToolTip(lblEventCount, counter.ToDetailedSummary());
         }
 
         /// <summary>

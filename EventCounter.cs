@@ -40,12 +40,6 @@ namespace FileMonitorApps
             }
         }
 
-        /// <summary>Số sự kiện của một loại.</summary>
-        public int this[FileEventType eventType]
-        {
-            get { return GetCount(eventType); }
-        }
-
         /// <summary>
         /// Lấy số sự kiện của một loại. Loại chưa xuất hiện lần nào thì trả về 0.
         /// </summary>

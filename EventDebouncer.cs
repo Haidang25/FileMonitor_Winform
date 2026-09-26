@@ -56,24 +56,6 @@ namespace FileMonitorApps
         /// <summary>Số khóa tối đa được nhớ trước khi dọn bớt.</summary>
         private readonly int maxTrackedKeys;
 
-        /// <summary>Ngưỡng gộp đang dùng, tính bằng mili giây.</summary>
-        public int IntervalMilliseconds
-        {
-            get { return intervalMilliseconds; }
-        }
-
-        /// <summary>Số khóa đang được nhớ. Dùng để theo dõi và kiểm thử.</summary>
-        public int TrackedCount
-        {
-            get
-            {
-                lock (syncLock)
-                {
-                    return lastSeen.Count;
-                }
-            }
-        }
-
         /// <summary>Tạo bộ chống trùng với ngưỡng mặc định 500 ms.</summary>
         public EventDebouncer()
             : this(DefaultIntervalMilliseconds, DefaultMaxTrackedKeys, null)

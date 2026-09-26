@@ -30,12 +30,6 @@ namespace FileMonitorApps
         /// <summary>Bản ghi mô tả thay đổi vừa phát hiện.</summary>
         public FileEventLog Entry { get; private set; }
 
-        /// <summary>Thời điểm phát hiện, lấy từ bản ghi cho tiện dùng.</summary>
-        public DateTime Time
-        {
-            get { return Entry != null ? Entry.Time : DateTime.MinValue; }
-        }
-
         /// <summary>Loại thay đổi, lấy từ bản ghi cho tiện dùng.</summary>
         public FileEventType EventType
         {

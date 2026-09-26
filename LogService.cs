@@ -90,7 +90,7 @@ namespace FileMonitorApps
         /// <exception cref="ArgumentException">Đường dẫn rỗng.</exception>
         public LogService(string logFolder)
         {
-            if (string.IsNullOrEmpty(logFolder) || logFolder.Trim().Length == 0)
+            if (string.IsNullOrWhiteSpace(logFolder))
             {
                 throw new ArgumentException("Chưa chỉ định thư mục chứa nhật ký.", "logFolder");
             }
@@ -610,14 +610,6 @@ namespace FileMonitorApps
         public string LastReadError { get; private set; }
 
         /// <summary>
-        /// Đọc toàn bộ nhật ký của mọi ngày, cũ trước mới sau.
-        /// </summary>
-        public List<FileEventLog> ReadAll()
-        {
-            return ReadRange(DateTime.MinValue, DateTime.MaxValue);
-        }
-
-        /// <summary>
         /// Đọc toàn bộ bản ghi trong khoảng ngày [from, to], cũ trước mới sau.
         /// Chỉ mở những tệp thuộc khoảng ngày đó.
         /// </summary>
@@ -625,7 +617,7 @@ namespace FileMonitorApps
         /// Duyệt theo danh sách tệp ĐANG CÓ (GetAvailableDays) chứ không duyệt từng ngày
         /// từ from tới to:
         /// - Khoảng 7 ngày mà chỉ 2 ngày có giám sát thì chỉ đụng tới 2 tệp.
-        /// - ReadAll truyền vào MinValue..MaxValue; duyệt từng ngày sẽ là ~3,6 triệu vòng lặp.
+        /// - Khoảng ngày rất rộng (vài năm) cũng chỉ duyệt đúng số tệp đang có.
         ///
         /// Tệp nào không đọc được thì bỏ qua tệp đó và ghi lý do vào LastReadError,
         /// các ngày còn lại vẫn được trả về. Một tệp hỏng không được làm mất cả lần tải.
@@ -749,31 +741,6 @@ namespace FileMonitorApps
         #region Tìm kiếm và lọc (chuyển từ MainForm sang)
 
         /// <summary>
-        /// Đọc và lọc trong một bước. Kết quả sắp xếp mới nhất lên đầu, sẵn để hiển thị.
-        /// </summary>
-        /// <remarks>
-        /// Khoảng ngày được dùng HAI lần, mỗi lần một việc:
-        /// - ReadRange dùng nó để chọn TỆP cần mở: 7 ngày thì mở tối đa 7 tệp, không đọc
-        ///   cả lịch sử nhiều tháng rồi mới lọc. Đây là lợi ích chính của việc tách tệp theo ngày.
-        /// - Filter dùng nó để lọc từng BẢN GHI, để kết quả vẫn đúng kể cả khi một tệp chứa
-        ///   bản ghi lệch ngày (ví dụ người dùng tự chép nối hai tệp vào nhau).
-        /// </remarks>
-        public List<FileEventLog> Query(LogFilter filter)
-        {
-            if (filter == null)
-            {
-                filter = new LogFilter();
-            }
-
-            List<FileEventLog> entries = ReadRange(filter.RangeStart, filter.RangeEnd);
-            List<FileEventLog> result = Filter(entries, filter);
-
-            // Tệp ghi nối nên thứ tự đọc ra là cũ trước, mới sau. Đảo lại cho bảng hiển thị.
-            result.Reverse();
-            return result;
-        }
-
-        /// <summary>
         /// Lọc một danh sách có sẵn trong bộ nhớ theo mọi điều kiện của filter,
         /// không đụng tới đĩa.
         /// </summary>
@@ -807,146 +774,6 @@ namespace FileMonitorApps
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// Lọc theo loại sự kiện. eventType = null nghĩa là lấy tất cả các loại.
-        /// </summary>
-        /// <param name="entries">Danh sách cần lọc. Không bị sửa.</param>
-        /// <param name="eventType">Loại cần lấy, hoặc null cho "Tất cả loại".</param>
-        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
-        /// <remarks>
-        /// Dùng lại đúng quy tắc của LogFilter.MatchesEventType, để lọc riêng theo loại
-        /// và lọc tổng hợp qua Filter() không bao giờ cho hai kết quả khác nhau.
-        ///
-        /// Luôn trả về danh sách mới, kể cả khi không lọc gì: bên gọi có thể Reverse()
-        /// hay Clear() kết quả mà không làm hỏng danh sách gốc (allLogEntries trong MainForm).
-        /// </remarks>
-        public static List<FileEventLog> FilterByEventType(IEnumerable<FileEventLog> entries,
-            FileEventType? eventType)
-        {
-            List<FileEventLog> result = new List<FileEventLog>();
-
-            if (entries == null)
-            {
-                return result;
-            }
-
-            LogFilter filter = new LogFilter();
-            filter.EventType = eventType;
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (filter.MatchesEventType(entry))
-                {
-                    result.Add(entry);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Lọc theo khoảng ngày [from, to], tính cả hai ngày đầu mút.
-        /// </summary>
-        /// <param name="entries">Danh sách cần lọc. Không bị sửa.</param>
-        /// <param name="from">Ngày bắt đầu (phần giờ bị bỏ qua).</param>
-        /// <param name="to">Ngày kết thúc (lấy tới hết ngày). Ngược với from thì tự đổi chỗ.</param>
-        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
-        /// <remarks>
-        /// Dùng lại đúng quy tắc của LogFilter.MatchesDate, giống FilterByEventType và Search.
-        /// </remarks>
-        public static List<FileEventLog> FilterByDate(IEnumerable<FileEventLog> entries,
-            DateTime from, DateTime to)
-        {
-            List<FileEventLog> result = new List<FileEventLog>();
-
-            if (entries == null)
-            {
-                return result;
-            }
-
-            LogFilter filter = new LogFilter();
-            filter.FromDate = from;
-            filter.ToDate = to;
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (filter.MatchesDate(entry))
-                {
-                    result.Add(entry);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Tìm các bản ghi có chứa từ khóa trong tên tệp hoặc đường dẫn.
-        /// Từ khóa rỗng thì trả về tất cả.
-        /// </summary>
-        /// <param name="entries">Danh sách cần tìm. Không bị sửa.</param>
-        /// <param name="keyword">Từ khóa; nhiều từ cách nhau bởi khoảng trắng.</param>
-        /// <returns>Danh sách MỚI, giữ nguyên thứ tự của danh sách đầu vào.</returns>
-        /// <remarks>
-        /// Quy tắc tìm (không phân biệt hoa/thường và dấu, nhiều từ là AND, tìm cả tên cũ
-        /// của sự kiện Renamed) nằm ở LogFilter.MatchesKeyword; hàm này dùng lại đúng quy tắc
-        /// đó để tìm riêng và lọc tổng hợp không bao giờ cho hai kết quả khác nhau.
-        /// </remarks>
-        public static List<FileEventLog> Search(IEnumerable<FileEventLog> entries, string keyword)
-        {
-            List<FileEventLog> result = new List<FileEventLog>();
-
-            if (entries == null)
-            {
-                return result;
-            }
-
-            LogFilter filter = new LogFilter();
-            filter.Keyword = keyword;
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (filter.MatchesKeyword(entry))
-                {
-                    result.Add(entry);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Đếm số bản ghi của từng loại trong một danh sách.
-        /// </summary>
-        /// <remarks>
-        /// Dùng để hiện số lượng ngay trong ComboBox lọc, ví dụ "Deleted — Xóa (12)",
-        /// giúp người dùng biết trước chọn loại nào thì ra bao nhiêu dòng.
-        /// Mọi loại đều có mặt trong kết quả, kể cả loại bằng 0.
-        /// </remarks>
-        public static Dictionary<FileEventType, int> CountByEventType(IEnumerable<FileEventLog> entries)
-        {
-            Dictionary<FileEventType, int> counts = new Dictionary<FileEventType, int>();
-
-            foreach (FileEventType eventType in FileEventTypeHelper.GetAll())
-            {
-                counts[eventType] = 0;
-            }
-
-            if (entries == null)
-            {
-                return counts;
-            }
-
-            foreach (FileEventLog entry in entries)
-            {
-                if (entry != null && counts.ContainsKey(entry.EventType))
-                {
-                    counts[entry.EventType]++;
-                }
-            }
-
-            return counts;
         }
 
         #endregion
@@ -1055,7 +882,7 @@ namespace FileMonitorApps
         /// </exception>
         public int ExportCsv(string destinationPath, IList<FileEventLog> entries, char separator)
         {
-            if (string.IsNullOrEmpty(destinationPath) || destinationPath.Trim().Length == 0)
+            if (string.IsNullOrWhiteSpace(destinationPath))
             {
                 throw new ArgumentException("Chưa chỉ định tệp CSV cần tạo.", "destinationPath");
             }

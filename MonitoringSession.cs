@@ -186,15 +186,9 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Nhóm sự cố đã làm phiên gần nhất tự dừng; None nếu phiên đang chạy
+        /// Lý do ngắn gọn khiến phiên gần nhất tự dừng; rỗng nếu phiên đang chạy
         /// hoặc được dừng bình thường bằng nút Dừng.
         /// </summary>
-        public MonitorErrorKind LastFault
-        {
-            get { return lastFault; }
-        }
-
-        /// <summary>Lý do ngắn gọn của LastFault; rỗng nếu không có sự cố.</summary>
         public string LastFaultReason
         {
             get
