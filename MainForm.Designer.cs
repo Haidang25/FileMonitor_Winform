@@ -18,9 +18,9 @@
                 // Giải phóng phần lõi ở đây chứ không chỉ trong FormClosing:
                 // Form có thể bị Dispose mà không qua FormClosing (ví dụ tạo ra để
                 // kiểm thử rồi hủy, hoặc bị đóng bằng Dispose trực tiếp).
-                if (monitorService != null)
+                if (session != null)
                 {
-                    monitorService.Dispose();
+                    session.Dispose();
                 }
 
                 if (components != null)

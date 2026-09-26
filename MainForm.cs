@@ -4,7 +4,6 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Security;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -17,30 +16,16 @@ namespace FileMonitorApps
     public partial class MainForm : Form
     {
         /// <summary>
-        /// Phần lõi lo việc theo dõi thư mục. Form chỉ ra lệnh bật/tắt và nghe sự kiện.
-        /// </summary>
-        private readonly FileMonitorService monitorService = new FileMonitorService();
-
-        /// <summary>
-        /// Bộ đếm sự kiện của phiên giám sát hiện tại, tách theo từng loại.
-        /// </summary>
-        /// <remarks>
-        /// Không lấy số liệu từ dgvEvents.Rows.Count vì bảng chỉ giữ lại một số dòng gần
-        /// nhất, còn con số này phải phản ánh tổng số thay đổi thực sự đã bắt được.
-        /// </remarks>
-        private readonly EventCounter eventCounter = new EventCounter();
-
-        /// <summary>
         /// Đối tượng đọc/ghi tệp nhật ký. Cả chương trình dùng đúng một đối tượng,
         /// vì khóa ghi tệp là khóa của từng đối tượng.
         /// </summary>
         private readonly LogService logService = new LogService();
 
         /// <summary>
-        /// Số lần tràn bộ đệm trong phiên hiện tại. Mỗi lần tương ứng với một khoảng
-        /// thời gian mà nhật ký bị thiếu dữ liệu.
+        /// Phiên giám sát: lo toàn bộ phần nghiệp vụ (theo dõi, ghi nhật ký, đếm, xử lý sự cố).
+        /// Form chỉ ra lệnh Start/Stop, nghe sự kiện và hiển thị.
         /// </summary>
-        private int overflowCount;
+        private readonly MonitoringSession session;
 
         /// <summary>
         /// Các bản ghi đã nhận nhưng chưa kịp đưa lên bảng.
@@ -94,25 +79,14 @@ namespace FileMonitorApps
         /// </summary>
         private bool logLoaded;
 
-        /// <summary>
-        /// Số lần ghi nhật ký thất bại của LogService tại thời điểm bắt đầu phiên giám sát.
-        /// Lấy hiệu với con số hiện tại để ra số lần lỗi của riêng phiên này.
-        /// </summary>
-        private int writeFailuresAtSessionStart;
-
-        /// <summary>
-        /// Lý do phiên giám sát gần nhất bị dừng do sự cố (không phải do người dùng bấm Dừng).
-        /// Rỗng nếu không có sự cố. Nhãn trạng thái hiện lý do này cho tới lần bắt đầu tiếp theo,
-        /// để người dùng quay lại máy vẫn biết vì sao việc giám sát đã dừng.
-        /// </summary>
-        private string lastStopReason = string.Empty;
-
         public MainForm()
         {
             InitializeComponent();
 
-            monitorService.FileEventDetected += MonitorService_FileEventDetected;
-            monitorService.ErrorOccurred += MonitorService_ErrorOccurred;
+            session = new MonitoringSession(logService);
+            session.EventRecorded += Session_EventRecorded;
+            session.EventsMissed += Session_EventsMissed;
+            session.Faulted += Session_Faulted;
         }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -485,7 +459,7 @@ namespace FileMonitorApps
             saveFileDialog.Filter =
                 "CSV phân cách bằng dấu chấm phẩy — Excel đặt vùng Việt Nam (*.csv)|*.csv|" +
                 "CSV phân cách bằng dấu phẩy — chuẩn quốc tế (*.csv)|*.csv";
-            saveFileDialog.FilterIndex = GetSystemListSeparator() == ';'
+            saveFileDialog.FilterIndex = LogService.GetPreferredCsvSeparator() == ';'
                 ? ExportFormatSemicolon
                 : ExportFormatComma;
             saveFileDialog.DefaultExt = "csv";
@@ -500,64 +474,17 @@ namespace FileMonitorApps
                 ? lastExportFolder
                 : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
-            saveFileDialog.FileName = BuildExportFileName();
+            saveFileDialog.FileName = LogService.BuildExportFileName(
+                dtpFrom.Value, dtpTo.Value, GetSelectedEventType());
 
             if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
             {
                 return false;
             }
 
-            string path = saveFileDialog.FileName;
-
-            // Ép đuôi .csv dù người dùng gõ tên kèm đuôi khác. Nhờ vậy không bao giờ ghi đè
-            // nhầm lên tệp nhật ký (.log) hay một tệp quan trọng nào khác của người dùng.
-            if (!string.Equals(Path.GetExtension(path), ".csv", StringComparison.OrdinalIgnoreCase))
-            {
-                path += ".csv";
-            }
-
-            destinationPath = path;
+            destinationPath = LogService.EnsureCsvExtension(saveFileDialog.FileName);
             separator = saveFileDialog.FilterIndex == ExportFormatSemicolon ? ';' : ',';
             return true;
-        }
-
-        /// <summary>
-        /// Gợi ý tên tệp theo bộ lọc đang áp dụng, ví dụ "nhatky_20260919-20260926_Deleted.csv".
-        /// </summary>
-        /// <remarks>
-        /// Tên tệp mô tả luôn nội dung bên trong, để mấy hôm sau mở thư mục ra vẫn biết
-        /// tệp nào là tệp nào mà không phải mở từng tệp.
-        /// </remarks>
-        private string BuildExportFileName()
-        {
-            string name = "nhatky_"
-                + dtpFrom.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture)
-                + "-"
-                + dtpTo.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-
-            FilterItem selectedType = cboEventTypeFilter.SelectedItem as FilterItem;
-            if (selectedType != null && selectedType.Pattern.Length > 0)
-            {
-                name += "_" + selectedType.Pattern;
-            }
-
-            return name + ".csv";
-        }
-
-        /// <summary>
-        /// Dấu phân cách danh sách (List separator) trong cài đặt vùng của Windows —
-        /// chính là dấu Excel dùng để tách cột khi mở tệp CSV.
-        /// </summary>
-        private static char GetSystemListSeparator()
-        {
-            string listSeparator = CultureInfo.CurrentCulture.TextInfo.ListSeparator;
-
-            if (string.IsNullOrEmpty(listSeparator))
-            {
-                return ',';
-            }
-
-            return listSeparator[0] == ';' ? ';' : ',';
         }
 
         /// <summary>
@@ -867,11 +794,6 @@ namespace FileMonitorApps
                 return;
             }
 
-            if (!ConfirmHighVolumeScope(folderPath))
-            {
-                return;
-            }
-
             try
             {
                 dgvEvents.Rows.Clear();
@@ -879,25 +801,21 @@ namespace FileMonitorApps
                 {
                     pendingEvents.Clear();
                 }
-                eventCounter.Reset();
-                overflowCount = 0;
-                writeFailuresAtSessionStart = logService.WriteFailureCount;
                 flushCount = 0;
-                UpdateEventCount();
 
-                monitorService.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
-                lastStopReason = string.Empty;
+                // Session tự đặt lại bộ đếm và dọn sạch nếu khởi động thất bại.
+                session.Start(folderPath, GetSelectedFilter(), chkIncludeSubdirs.Checked);
+                UpdateEventCount();
                 SetMonitoringState(true);
             }
             catch (Exception ex)
             {
-                // Nếu khởi động thất bại thì phải dọn sạch, không để lại phiên dở dang.
-                monitorService.Stop();
                 SetMonitoringState(false);
 
                 MessageBox.Show(this,
                     "Không thể bắt đầu giám sát thư mục:" + Environment.NewLine + folderPath +
-                    Environment.NewLine + Environment.NewLine + DescribeStartError(ex) +
+                    Environment.NewLine + Environment.NewLine +
+                    MonitorErrorClassifier.DescribeStartError(ex, folderPath) +
                     Environment.NewLine + Environment.NewLine + "Chi tiết: " + ex.Message,
                     "Lỗi",
                     MessageBoxButtons.OK,
@@ -910,70 +828,27 @@ namespace FileMonitorApps
         /// </summary>
         private void btnStop_Click(object sender, EventArgs e)
         {
-            monitorService.Stop();
+            session.Stop();
 
             // Đẩy nốt những bản ghi vừa nhận nhưng chưa lên bảng, nếu không
             // các thay đổi cuối cùng trước khi dừng sẽ không bao giờ hiện ra.
             FlushPendingEvents();
 
-            lastStopReason = string.Empty;
             SetMonitoringState(false);
         }
 
         /// <summary>
-        /// Hỏi lại người dùng khi phạm vi theo dõi quá rộng.
-        /// </summary>
-        /// <returns>true nếu được phép tiếp tục.</returns>
-        private bool ConfirmHighVolumeScope(string folderPath)
-        {
-            if (!chkIncludeSubdirs.Checked || !FolderValidator.IsDriveRoot(folderPath))
-            {
-                return true;
-            }
-
-            DialogResult answer = MessageBox.Show(this,
-                "Bạn đang chọn thư mục gốc của ổ đĩa kèm toàn bộ thư mục con:" +
-                Environment.NewLine + folderPath + Environment.NewLine +
-                Environment.NewLine +
-                "Phạm vi này sinh ra rất nhiều sự kiện (tệp tạm của hệ điều hành, bộ nhớ đệm " +
-                "của trình duyệt, tiến trình đồng bộ ngầm...) và dễ làm tràn bộ đệm, " +
-                "khiến một số thay đổi bị bỏ sót." + Environment.NewLine +
-                Environment.NewLine + "Vẫn tiếp tục?",
-                "Phạm vi theo dõi quá rộng",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button2);
-
-            return answer == DialogResult.Yes;
-        }
-
-        /// <summary>
-        /// Phương thức xử lý sự kiện FileEventDetected: ghi xuống tệp rồi hiển thị lên bảng.
+        /// Một thay đổi đã được phiên giám sát ghi nhật ký và đếm xong: đưa lên bảng.
         /// </summary>
         /// <remarks>
-        /// Hàm này chạy trên LUỒNG NỀN của FileSystemWatcher.
-        /// Việc ghi tệp cố tình làm ngay tại đây, trước khi chuyển luồng: thao tác đĩa
-        /// mà đẩy sang luồng giao diện thì mỗi thay đổi sẽ làm giao diện khựng một nhịp.
-        /// Chỉ phần cập nhật control mới được chuyển về luồng giao diện.
+        /// Hàm này chạy trên LUỒNG NỀN. Việc ghi nhật ký đã làm trong MonitoringSession;
+        /// ở đây chỉ còn việc của giao diện: gom bản ghi rồi chuyển về luồng giao diện.
         /// </remarks>
-        private void MonitorService_FileEventDetected(object sender, FileEventDetectedEventArgs e)
+        private void Session_EventRecorded(object sender, FileEventDetectedEventArgs e)
         {
             if (e == null || e.Entry == null)
             {
                 return;
-            }
-
-            try
-            {
-                // TryAppend không ném ngoại lệ với các lỗi đĩa thường gặp (đĩa đầy, thiếu quyền,
-                // tệp bị khóa): nó trả về false và ghi nhận lỗi vào WriteFailureCount /
-                // LastWriteError. Nhãn trạng thái đọc hai giá trị đó để báo cho người dùng.
-                logService.TryAppend(e.Entry);
-            }
-            catch (Exception)
-            {
-                // Lưới an toàn cuối cùng cho lỗi không lường trước: đang ở luồng nền của
-                // FileSystemWatcher, một ngoại lệ lọt ra ngoài sẽ làm sập cả chương trình.
             }
 
             // Form có thể đã đóng trong lúc sự kiện đang trên đường tới.
@@ -1176,18 +1051,61 @@ namespace FileMonitorApps
                 dgvEvents.Rows.RemoveAt(dgvEvents.Rows.Count - 1);
             }
 
-            eventCounter.Increment(entry.EventType);
         }
 
         /// <summary>
         /// Xử lý sự cố do phần lõi báo lên (tràn bộ đệm, mất thư mục đang theo dõi...).
         /// </summary>
+        /// <summary>
+        /// Bộ đệm của hệ điều hành bị tràn, một số thay đổi đã bị bỏ sót.
+        /// </summary>
         /// <remarks>
-        /// FileMonitorService phát sự kiện trên LUỒNG NỀN của FileSystemWatcher.
-        /// Windows Forms chỉ cho phép đụng tới control từ đúng luồng đã tạo ra nó,
-        /// nên phải chuyển lời gọi về luồng giao diện bằng BeginInvoke trước khi cập nhật.
+        /// Phiên vẫn chạy tiếp; chỉ cần cập nhật nhãn trạng thái (số lần bỏ sót).
+        /// Cố tình KHÔNG hiện hộp thoại: tràn bộ đệm thường xảy ra thành chuỗi khi thư mục
+        /// thay đổi dồn dập, mỗi lần một hộp thoại thì người dùng không làm được gì khác.
         /// </remarks>
-        private void MonitorService_ErrorOccurred(object sender, MonitorErrorEventArgs e)
+        private void Session_EventsMissed(object sender, EventArgs e)
+        {
+            RunOnUiThread(UpdateStatusLabel);
+        }
+
+        /// <summary>
+        /// Phiên giám sát đã tự dừng do sự cố: cập nhật giao diện và báo cho người dùng.
+        /// </summary>
+        /// <remarks>
+        /// MonitoringSession đã dừng bộ theo dõi, phân loại nguyên nhân và bảo đảm chỉ phát
+        /// sự kiện này một lần. Form chỉ việc hiển thị.
+        /// </remarks>
+        private void Session_Faulted(object sender, MonitorFaultEventArgs e)
+        {
+            RunOnUiThread(delegate
+            {
+                // Đưa nốt những thay đổi đã bắt được trước sự cố lên bảng, không để mất.
+                FlushPendingEvents();
+                SetMonitoringState(false);
+
+                MessageBox.Show(this,
+                    "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
+                    Environment.NewLine + e.Description +
+                    Environment.NewLine + Environment.NewLine +
+                    "Các thay đổi phát hiện được trước đó vẫn còn trên bảng và trong tệp nhật ký." +
+                    Environment.NewLine + Environment.NewLine +
+                    "Chi tiết: " + (e.Error != null ? e.Error.Message : "không rõ"),
+                    "Lỗi giám sát",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            });
+        }
+
+        /// <summary>
+        /// Chạy một việc trên luồng giao diện; gọi từ luồng nào cũng được.
+        /// </summary>
+        /// <remarks>
+        /// Windows Forms chỉ cho phép đụng tới control từ đúng luồng đã tạo ra nó. Các sự kiện
+        /// của MonitoringSession đến từ luồng nền, nên phải chuyển qua BeginInvoke.
+        /// Dùng BeginInvoke (không chờ) để luồng nền không bị giữ lại.
+        /// </remarks>
+        private void RunOnUiThread(Action action)
         {
             // Form có thể đã đóng trong lúc sự kiện đang trên đường tới.
             if (IsDisposed || !IsHandleCreated)
@@ -1195,176 +1113,20 @@ namespace FileMonitorApps
                 return;
             }
 
-            if (InvokeRequired)
+            if (!InvokeRequired)
             {
-                BeginInvoke(new EventHandler<MonitorErrorEventArgs>(MonitorService_ErrorOccurred),
-                    new object[] { sender, e });
+                action();
                 return;
             }
 
-            // Đã dừng rồi (người dùng bấm Dừng, hoặc một sự cố trước đó đã xử lý xong).
-            // Sự kiện Error có thể đến dồn nhiều lần; không chặn thì hiện nhiều hộp thoại liền nhau.
-            if (!isMonitoring)
+            try
             {
-                return;
+                BeginInvoke(action);
             }
-
-            if (e != null && e.IsBufferOverflow)
+            catch (InvalidOperationException)
             {
-                HandleBufferOverflow();
-                return;
+                // Form bị đóng ngay giữa lúc xếp hàng lời gọi.
             }
-
-            // Sự cố khiến bộ theo dõi không chạy được nữa: dừng ở đây, tức là sau khi đã
-            // về luồng giao diện, chứ không dừng ngay bên trong lời gọi lại của watcher.
-            monitorService.Stop();
-
-            // Đưa nốt những thay đổi đã bắt được trước sự cố lên bảng, không để mất.
-            FlushPendingEvents();
-
-            Exception error = e != null ? e.Error : null;
-            lastStopReason = GetShortStopReason(error, txtFolderPath.Text);
-            SetMonitoringState(false);
-
-            MessageBox.Show(this,
-                "Quá trình giám sát đã dừng do gặp sự cố." + Environment.NewLine +
-                Environment.NewLine + DescribeWatchError(error, txtFolderPath.Text) +
-                Environment.NewLine + Environment.NewLine +
-                "Các thay đổi phát hiện được trước đó vẫn còn trên bảng và trong tệp nhật ký." +
-                Environment.NewLine + Environment.NewLine +
-                "Chi tiết: " + (error != null ? error.Message : "không rõ"),
-                "Lỗi giám sát",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-        }
-
-        /// <summary>
-        /// Giải thích nguyên nhân khi không bắt đầu giám sát được.
-        /// </summary>
-        /// <remarks>
-        /// FolderValidator đã thử đọc thư mục trước đó, nên tới được đây thường là do quyền
-        /// thay đổi ngay giữa lúc kiểm tra và lúc bắt đầu, hoặc thư mục đọc được nhưng Windows
-        /// không cho THEO DÕI (ReadDirectoryChangesW cần quyền riêng).
-        ///
-        /// Lưu ý: khi thiếu quyền, FileSystemWatcher của .NET Framework KHÔNG ném
-        /// UnauthorizedAccessException mà ném FileNotFoundException với câu "Error reading
-        /// the directory", nên phải xét cả trường hợp thư mục vẫn tồn tại.
-        /// DirectoryNotFoundException/FileNotFoundException là lớp con của IOException,
-        /// nên được xét trước.
-        /// </remarks>
-        private string DescribeStartError(Exception ex)
-        {
-            if (ex is UnauthorizedAccessException)
-            {
-                return "Tài khoản hiện tại không đủ quyền theo dõi thư mục này. " +
-                    "Hãy chọn thư mục khác, hoặc chạy chương trình bằng quyền Administrator.";
-            }
-
-            if (ex is DirectoryNotFoundException)
-            {
-                return "Thư mục vừa bị xóa, đổi tên hoặc di chuyển.";
-            }
-
-            if (ex is FileNotFoundException || ex is IOException)
-            {
-                string folder = txtFolderPath.Text.Trim();
-                if (folder.Length > 0 && Directory.Exists(folder))
-                {
-                    return "Windows không cho phép theo dõi thư mục này. Nguyên nhân thường gặp: " +
-                        "tài khoản không đủ quyền, hoặc thư mục nằm trên ổ không hỗ trợ theo dõi thay đổi.";
-                }
-
-                return "Thư mục vừa bị xóa, đổi tên hoặc di chuyển.";
-            }
-
-            return "Đã xảy ra lỗi ngoài dự kiến.";
-        }
-
-        /// <summary>
-        /// Giải thích nguyên nhân khi việc giám sát đang chạy bị dừng giữa chừng.
-        /// </summary>
-        /// <remarks>
-        /// Khi quyền truy cập bị thu hồi lúc đang giám sát, sự kiện Error của FileSystemWatcher
-        /// mang theo Win32Exception mã 5 (ERROR_ACCESS_DENIED) chứ không phải
-        /// UnauthorizedAccessException, nên phải nhận ra cả hai dạng.
-        /// </remarks>
-        private static string DescribeWatchError(Exception error, string folderPath)
-        {
-            // Xét "mất thư mục" TRƯỚC "thiếu quyền": khi thư mục bị xóa, Windows cũng báo mã 5
-            // (Access is denied), xét ngược thứ tự sẽ báo nhầm là thiếu quyền.
-            if (IsFolderLost(error, folderPath))
-            {
-                return "Thư mục đang giám sát không còn tồn tại: nó đã bị xóa, đổi tên, di chuyển " +
-                    "(kể cả bỏ vào Thùng rác), hoặc ổ USB / ổ mạng chứa nó đã bị ngắt." +
-                    Environment.NewLine + Environment.NewLine +
-                    "Nếu thư mục được khôi phục, hãy bấm \"Bắt đầu giám sát\" lại.";
-            }
-
-            System.ComponentModel.Win32Exception win32 = error as System.ComponentModel.Win32Exception;
-            const int ErrorAccessDenied = 5;
-
-            if (error is UnauthorizedAccessException
-                || (win32 != null && win32.NativeErrorCode == ErrorAccessDenied))
-            {
-                return "Tài khoản hiện tại không còn quyền truy cập thư mục đang giám sát " +
-                    "(quyền vừa bị thay đổi, hoặc thư mục bị khóa bởi phần mềm bảo mật).";
-            }
-
-            return "Nguyên nhân thường gặp: thư mục đang theo dõi bị xóa, bị đổi tên, " +
-                "hoặc nằm trên ổ đĩa mạng đã ngắt kết nối.";
-        }
-
-        /// <summary>
-        /// Sự cố có phải do thư mục đang giám sát không còn tồn tại hay không.
-        /// </summary>
-        private static bool IsFolderLost(Exception error, string folderPath)
-        {
-            if (error is DirectoryNotFoundException)
-            {
-                return true;
-            }
-
-            string folder = (folderPath ?? string.Empty).Trim();
-            return folder.Length > 0 && !Directory.Exists(folder);
-        }
-
-        /// <summary>
-        /// Lý do ngắn gọn để hiện trên nhãn trạng thái sau khi giám sát bị dừng do sự cố.
-        /// </summary>
-        private static string GetShortStopReason(Exception error, string folderPath)
-        {
-            if (IsFolderLost(error, folderPath))
-            {
-                return "thư mục giám sát không còn tồn tại";
-            }
-
-            System.ComponentModel.Win32Exception win32 = error as System.ComponentModel.Win32Exception;
-            if (error is UnauthorizedAccessException || (win32 != null && win32.NativeErrorCode == 5))
-            {
-                return "mất quyền truy cập thư mục";
-            }
-
-            return "gặp sự cố";
-        }
-
-        /// <summary>
-        /// Xử lý tình huống tràn bộ đệm: vẫn tiếp tục giám sát, chỉ báo cho người dùng biết
-        /// rằng nhật ký đã bị thiếu một khoảng.
-        /// </summary>
-        /// <remarks>
-        /// Cố tình KHÔNG hiện hộp thoại ở đây, vì hai lẽ:
-        /// - Tràn bộ đệm thường xảy ra thành chuỗi khi thư mục đang bị thay đổi dồn dập;
-        ///   mỗi lần một hộp thoại thì người dùng không thể làm gì khác.
-        /// - Hộp thoại là loại chặn (modal), trong lúc nó mở thì các sự kiện tiếp theo
-        ///   chỉ xếp hàng chờ, càng làm tình hình tệ hơn.
-        ///
-        /// Thay vào đó dùng nhãn trạng thái đổi màu kèm số lần bỏ sót, và chú thích
-        /// giải thích nguyên nhân khi người dùng đưa chuột vào.
-        /// </remarks>
-        private void HandleBufferOverflow()
-        {
-            overflowCount++;
-            UpdateStatusLabel();
         }
 
         /// <summary>
@@ -1393,14 +1155,15 @@ namespace FileMonitorApps
         {
             if (!isMonitoring)
             {
-                if (lastStopReason.Length > 0)
+                string stopReason = session.LastFaultReason;
+                if (stopReason.Length > 0)
                 {
                     // Trạng thái "Lỗi" (chức năng B3): giám sát đã dừng ngoài ý muốn.
                     // Giữ nguyên cho tới lần bắt đầu tiếp theo, không tự biến mất.
-                    lblStatus.Text = "● Lỗi — đã dừng: " + lastStopReason;
+                    lblStatus.Text = "● Lỗi — đã dừng: " + stopReason;
                     lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
                     toolTipMain.SetToolTip(lblStatus,
-                        "Giám sát đã tự dừng vì " + lastStopReason + "." + Environment.NewLine +
+                        "Giám sát đã tự dừng vì " + stopReason + "." + Environment.NewLine +
                         "Thư mục: " + txtFolderPath.Text);
                     return;
                 }
@@ -1411,7 +1174,8 @@ namespace FileMonitorApps
                 return;
             }
 
-            int writeFailures = logService.WriteFailureCount - writeFailuresAtSessionStart;
+            int writeFailures = session.WriteFailureCount;
+            int overflowCount = session.OverflowCount;
 
             if (writeFailures > 0)
             {
@@ -1427,9 +1191,9 @@ namespace FileMonitorApps
                 lblStatus.ForeColor = Color.FromArgb(196, 43, 28);
                 toolTipMain.SetToolTip(lblStatus,
                     writeFailures.ToString("N0") + " sự kiện không ghi được xuống tệp nhật ký." +
-                    Environment.NewLine + "Lỗi gần nhất: " + logService.LastWriteError +
+                    Environment.NewLine + "Lỗi gần nhất: " + session.LastWriteError +
                     Environment.NewLine + Environment.NewLine +
-                    "Thư mục nhật ký: " + logService.LogFolder + Environment.NewLine +
+                    "Thư mục nhật ký: " + session.LogFolder + Environment.NewLine +
                     "Hãy kiểm tra dung lượng ổ đĩa và quyền ghi vào thư mục này.");
                 return;
             }
@@ -1498,9 +1262,10 @@ namespace FileMonitorApps
         /// </remarks>
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            monitorService.FileEventDetected -= MonitorService_FileEventDetected;
-            monitorService.ErrorOccurred -= MonitorService_ErrorOccurred;
-            monitorService.Stop();
+            session.EventRecorded -= Session_EventRecorded;
+            session.EventsMissed -= Session_EventsMissed;
+            session.Faulted -= Session_Faulted;
+            session.Stop();
         }
 
         #endregion
@@ -1607,15 +1372,16 @@ namespace FileMonitorApps
         /// </remarks>
         private void UpdateEventCount()
         {
-            string text = eventCounter.ToSummary();
+            EventCounter counter = session.Counter;
+            string text = counter.ToSummary();
 
-            if (dgvEvents.Rows.Count != eventCounter.Total)
+            if (dgvEvents.Rows.Count != counter.Total)
             {
                 text += "   —   đang hiển thị " + dgvEvents.Rows.Count.ToString("N0");
             }
 
             lblEventCount.Text = text;
-            toolTipMain.SetToolTip(lblEventCount, eventCounter.ToDetailedSummary());
+            toolTipMain.SetToolTip(lblEventCount, counter.ToDetailedSummary());
         }
 
         /// <summary>

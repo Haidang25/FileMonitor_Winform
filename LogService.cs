@@ -952,6 +952,67 @@ namespace FileMonitorApps
         /// <summary>Dấu phân cách cột mặc định của tệp CSV.</summary>
         public const char DefaultCsvSeparator = ',';
 
+        /// <summary>Phần mở rộng của tệp xuất.</summary>
+        public const string CsvExtension = ".csv";
+
+        /// <summary>
+        /// Dấu phân cách hợp với Excel trên máy này: dấu phân cách danh sách (List separator)
+        /// trong cài đặt vùng của Windows — chính là dấu Excel dùng để tách cột khi mở CSV.
+        /// Chỉ trả về ';' hoặc ','.
+        /// </summary>
+        public static char GetPreferredCsvSeparator()
+        {
+            string listSeparator = CultureInfo.CurrentCulture.TextInfo.ListSeparator;
+
+            if (string.IsNullOrEmpty(listSeparator))
+            {
+                return DefaultCsvSeparator;
+            }
+
+            return listSeparator[0] == ';' ? ';' : ',';
+        }
+
+        /// <summary>
+        /// Gợi ý tên tệp xuất theo bộ lọc, ví dụ "nhatky_20260919-20260926_Deleted.csv".
+        /// </summary>
+        /// <remarks>
+        /// Tên tệp mô tả luôn nội dung bên trong, để mấy hôm sau mở thư mục ra vẫn biết
+        /// tệp nào là tệp nào mà không phải mở từng tệp.
+        /// </remarks>
+        public static string BuildExportFileName(DateTime from, DateTime to, FileEventType? eventType)
+        {
+            string name = "nhatky_"
+                + from.ToString("yyyyMMdd", CultureInfo.InvariantCulture)
+                + "-"
+                + to.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+
+            if (eventType.HasValue)
+            {
+                name += "_" + eventType.Value;
+            }
+
+            return name + CsvExtension;
+        }
+
+        /// <summary>
+        /// Bảo đảm tệp xuất có đuôi .csv, thêm vào nếu thiếu hoặc đang là đuôi khác.
+        /// </summary>
+        /// <remarks>
+        /// Nhờ vậy việc xuất không bao giờ ghi đè nhầm lên tệp nhật ký (.log) hay một tệp
+        /// quan trọng nào khác của người dùng, kể cả khi người dùng gõ tên kèm đuôi khác.
+        /// </remarks>
+        public static string EnsureCsvExtension(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
+
+            return string.Equals(Path.GetExtension(path), CsvExtension, StringComparison.OrdinalIgnoreCase)
+                ? path
+                : path + CsvExtension;
+        }
+
         /// <summary>
         /// Xuất danh sách ra tệp CSV, dùng dấu phẩy làm dấu phân cách.
         /// </summary>

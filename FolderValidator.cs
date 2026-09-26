@@ -68,6 +68,7 @@ namespace FileMonitorApps
     ///   8. Không đọc được            → thiếu quyền
     ///   9. Trùng thư mục nhật ký     → vòng lặp ghi log vô hạn
     ///  10. Ổ mạng                    → chỉ cảnh báo, không chặn
+    ///  11. Gốc ổ đĩa + thư mục con   → chỉ cảnh báo, không chặn
     /// Mỗi bước trả về một thông báo riêng, để người dùng biết chính xác phải sửa gì
     /// thay vì một câu "đường dẫn không hợp lệ" chung chung.
     /// </remarks>
@@ -207,8 +208,9 @@ namespace FileMonitorApps
                 return FolderValidationResult.Invalid(loopError);
             }
 
-            // 10. Ổ mạng: không chặn, chỉ cảnh báo
-            return FolderValidationResult.Valid(path, GetNetworkWarning(path));
+            // 10–11. Ổ mạng, phạm vi quá rộng: không chặn, chỉ cảnh báo
+            return FolderValidationResult.Valid(path,
+                JoinWarnings(GetNetworkWarning(path), GetScopeWarning(path, includeSubdirectories)));
         }
 
         #region Các bước kiểm tra (hàm thuần, không đụng đĩa — kiểm thử được độc lập)
@@ -496,7 +498,50 @@ namespace FileMonitorApps
             return "Thư mục này nằm trên ổ mạng:" + Environment.NewLine + path + Environment.NewLine +
                 Environment.NewLine +
                 "Chương trình được thiết kế cho ổ đĩa cục bộ. Trên ổ mạng, một số thay đổi có thể " +
-                "không được phát hiện, và khi mất kết nối thì việc giám sát sẽ dừng." +
+                "không được phát hiện, và khi mất kết nối thì việc giám sát sẽ dừng.";
+        }
+
+        /// <summary>
+        /// Cảnh báo khi theo dõi cả một ổ đĩa kèm thư mục con. Trả về chuỗi rỗng nếu không sao.
+        /// </summary>
+        /// <remarks>
+        /// Chuyển từ MainForm sang (trước là ConfirmHighVolumeScope): đánh giá phạm vi nào là
+        /// "quá rộng" là quy tắc nghiệp vụ, giao diện chỉ việc hỏi người dùng.
+        /// </remarks>
+        private static string GetScopeWarning(string path, bool includeSubdirectories)
+        {
+            if (!includeSubdirectories || !IsDriveRoot(path))
+            {
+                return string.Empty;
+            }
+
+            return "Bạn đang chọn thư mục gốc của ổ đĩa kèm toàn bộ thư mục con:" +
+                Environment.NewLine + path + Environment.NewLine + Environment.NewLine +
+                "Phạm vi này sinh ra rất nhiều sự kiện (tệp tạm của hệ điều hành, bộ nhớ đệm " +
+                "của trình duyệt, tiến trình đồng bộ ngầm...) và dễ làm tràn bộ đệm, " +
+                "khiến một số thay đổi bị bỏ sót.";
+        }
+
+        /// <summary>
+        /// Gộp các cảnh báo khác rỗng thành một, thêm câu hỏi "Vẫn tiếp tục?" ở cuối.
+        /// </summary>
+        internal static string JoinWarnings(params string[] warnings)
+        {
+            List<string> parts = new List<string>();
+            foreach (string warning in warnings)
+            {
+                if (!string.IsNullOrEmpty(warning))
+                {
+                    parts.Add(warning);
+                }
+            }
+
+            if (parts.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return string.Join(Environment.NewLine + Environment.NewLine, parts.ToArray()) +
                 Environment.NewLine + Environment.NewLine + "Vẫn tiếp tục?";
         }
 
