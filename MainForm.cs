@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -74,6 +75,30 @@ namespace FileMonitorApps
         /// </summary>
         private bool logLoaded;
 
+        /// <summary>Cột đang dùng để sắp xếp bảng nhật ký; mặc định là cột thời gian.</summary>
+        private int logSortColumn = -1;
+
+        /// <summary>Chiều sắp xếp bảng nhật ký; mặc định mới nhất lên đầu.</summary>
+        private bool logSortAscending;
+
+        /// <summary>
+        /// true trong lúc một ô ngày đang tự chỉnh ô ngày còn lại (Từ ngày vượt Đến ngày...),
+        /// để không đọc lại đĩa hai lần cho cùng một lần thay đổi.
+        /// </summary>
+        private bool adjustingDates;
+
+        /// <summary>
+        /// Thời gian chờ sau lần gõ phím cuối cùng trong ô tìm kiếm trước khi lọc (mili giây).
+        /// </summary>
+        private const int SearchDelayMilliseconds = 300;
+
+        /// <summary>
+        /// Bộ hẹn giờ trì hoãn việc lọc khi đang gõ tìm kiếm. Timer của WinForms chạy trên
+        /// luồng giao diện nên trong Tick được đụng tới control mà không cần Invoke.
+        /// </summary>
+        private readonly System.Windows.Forms.Timer searchDelayTimer =
+            new System.Windows.Forms.Timer { Interval = SearchDelayMilliseconds };
+
         /// <summary>
         /// Tạo cửa sổ và đăng ký nghe ba sự kiện của phiên giám sát.
         /// </summary>
@@ -103,6 +128,15 @@ namespace FileMonitorApps
             // Hai bảng dùng chung một kiểu trình bày để giao diện đồng bộ.
             ApplyGridStyle(dgvEvents);
             ApplyGridStyle(dgvLogHistory);
+            SetupLogGrid();
+            searchDelayTimer.Tick += searchDelayTimer_Tick;
+
+            // Bảng tab Giám sát KHÔNG cho sắp xếp: dòng mới luôn được chèn lên đầu, nếu người dùng
+            // đã sắp theo cột khác thì dòng mới sẽ nằm lẫn lộn và thứ tự thời gian bị phá vỡ.
+            foreach (DataGridViewColumn column in dgvEvents.Columns)
+            {
+                column.SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
 
             // Số canh phải để các kích thước thẳng hàng theo hàng đơn vị, dễ so sánh.
             colSize.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -637,11 +671,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void ApplyLogFilters()
         {
-            List<FileEventLog> result = LogService.Filter(logEntriesInRange, BuildLogFilter());
-
-            // Tệp được ghi nối nên thứ tự trong tệp là cũ trước, mới sau.
-            // Đảo lại để bản ghi mới nhất nằm trên đầu bảng.
-            result.Reverse();
+            List<FileEventLog> result = SortLogEntries(LogService.Filter(logEntriesInRange, BuildLogFilter()));
 
             displayedLogEntries = result;
             ShowLogEntries(result);
@@ -713,6 +743,18 @@ namespace FileMonitorApps
         /// </summary>
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
+            // Không lọc ngay ở mỗi phím: chờ người dùng ngừng gõ một nhịp ngắn rồi mới lọc.
+            // Gõ "baocao" liền tay chỉ lọc một lần thay vì sáu lần, bảng không bị giật khi nhật ký lớn.
+            searchDelayTimer.Stop();
+            searchDelayTimer.Start();
+        }
+
+        /// <summary>
+        /// Hết thời gian chờ sau lần gõ phím cuối cùng: lọc lại bảng nhật ký.
+        /// </summary>
+        private void searchDelayTimer_Tick(object sender, EventArgs e)
+        {
+            searchDelayTimer.Stop();
             ApplyLogFilters();
         }
 
@@ -739,9 +781,16 @@ namespace FileMonitorApps
         /// </summary>
         private void dtpFrom_ValueChanged(object sender, EventArgs e)
         {
+            if (adjustingDates)
+            {
+                return;
+            }
+
             if (dtpFrom.Value.Date > dtpTo.Value.Date)
             {
+                adjustingDates = true;
                 dtpTo.Value = dtpFrom.Value.Date;
+                adjustingDates = false;
             }
 
             OnDateRangeChanged();
@@ -752,9 +801,16 @@ namespace FileMonitorApps
         /// </summary>
         private void dtpTo_ValueChanged(object sender, EventArgs e)
         {
+            if (adjustingDates)
+            {
+                return;
+            }
+
             if (dtpTo.Value.Date < dtpFrom.Value.Date)
             {
+                adjustingDates = true;
                 dtpFrom.Value = dtpTo.Value.Date;
+                adjustingDates = false;
             }
 
             OnDateRangeChanged();
@@ -777,51 +833,220 @@ namespace FileMonitorApps
         }
 
         /// <summary>
-        /// Đổ danh sách nhật ký lên bảng dgvLogHistory.
+        /// Hiển thị danh sách nhật ký lên bảng dgvLogHistory.
         /// </summary>
+        /// <remarks>
+        /// Sửa lỗi hiệu năng: bảng nhật ký chạy ở CHẾ ĐỘ ẢO (VirtualMode). Bảng không giữ dữ liệu
+        /// của từng dòng; nó chỉ biết có bao nhiêu dòng (RowCount) và hỏi lại nội dung của những ô
+        /// ĐANG NHÌN THẤY qua sự kiện CellValueNeeded.
+        ///
+        /// Trước đây mỗi lần tải log hay gõ một phím tìm kiếm, bảng xóa hết rồi thêm lại từng dòng
+        /// bằng Rows.Add. Với nhật ký vài chục nghìn dòng, việc này mất nhiều giây và làm cửa sổ
+        /// đứng hình khi gõ. Ở chế độ ảo, dù danh sách có bao nhiêu dòng thì mỗi lần cũng chỉ vẽ
+        /// khoảng vài chục dòng đang hiện trên màn hình.
+        /// </remarks>
         private void ShowLogEntries(List<FileEventLog> entries)
         {
+            // Dùng Rows.Clear() chứ không gán RowCount = 0: giảm RowCount khiến bảng xóa từng dòng
+            // một (đo được hơn 2 giây với 20.000 dòng), còn Rows.Clear() xóa cả loạt trong một lần.
             dgvLogHistory.Rows.Clear();
+            dgvLogHistory.RowCount = entries != null ? entries.Count : 0;
+            dgvLogHistory.Invalidate();
+        }
 
-            if (entries == null || entries.Count == 0)
+        /// <summary>
+        /// Chuẩn bị bảng nhật ký cho chế độ ảo và sắp xếp theo cột. Gọi một lần lúc mở chương trình.
+        /// </summary>
+        private void SetupLogGrid()
+        {
+            dgvLogHistory.VirtualMode = true;
+            dgvLogHistory.CellValueNeeded += dgvLogHistory_CellValueNeeded;
+            dgvLogHistory.CellFormatting += dgvLogHistory_CellFormatting;
+            dgvLogHistory.CellToolTipTextNeeded += dgvLogHistory_CellToolTipTextNeeded;
+            dgvLogHistory.ColumnHeaderMouseClick += dgvLogHistory_ColumnHeaderMouseClick;
+
+            // Tự sắp xếp (Programmatic) thay vì để bảng tự làm: ở chế độ ảo bảng không có
+            // dữ liệu để tự sắp, và nếu có thì nó sẽ so sánh CHUỖI hiển thị — "26/09/2026" đứng
+            // sau "01/10/2026", "512 B" đứng sau "1,5 KB".
+            foreach (DataGridViewColumn column in dgvLogHistory.Columns)
+            {
+                column.SortMode = DataGridViewColumnSortMode.Programmatic;
+            }
+
+            logSortColumn = colLogTime.Index;
+            logSortAscending = false;
+            colLogTime.HeaderCell.SortGlyphDirection = SortOrder.Descending;
+        }
+
+        /// <summary>
+        /// Bảng hỏi nội dung của một ô đang hiển thị (chế độ ảo).
+        /// </summary>
+        private void dgvLogHistory_CellValueNeeded(object sender, DataGridViewCellValueEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= displayedLogEntries.Count)
             {
                 return;
             }
 
-            // Tắt vẽ lại trong lúc thêm hàng loạt để bảng không bị nháy.
-            dgvLogHistory.SuspendLayout();
-            try
+            FileEventLog entry = displayedLogEntries[e.RowIndex];
+
+            if (e.ColumnIndex == colLogTime.Index)
             {
-                foreach (FileEventLog entry in entries)
+                e.Value = entry.Time.ToString(LogTimeFormat);
+            }
+            else if (e.ColumnIndex == colLogType.Index)
+            {
+                e.Value = entry.EventType.ToString();
+            }
+            else if (e.ColumnIndex == colLogFileName.Index)
+            {
+                e.Value = entry.FileName;
+            }
+            else if (e.ColumnIndex == colLogSize.Index)
+            {
+                e.Value = GetSizeText(entry);
+            }
+            else if (e.ColumnIndex == colLogFullPath.Index)
+            {
+                e.Value = entry.FullPath;
+            }
+        }
+
+        /// <summary>
+        /// Tô màu ô "Loại" giống bảng ở tab Giám sát để hai bảng đọc giống nhau.
+        /// </summary>
+        private void dgvLogHistory_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.ColumnIndex != colLogType.Index || e.RowIndex < 0 || e.RowIndex >= displayedLogEntries.Count)
+            {
+                return;
+            }
+
+            Color color = GetEventTypeColor(displayedLogEntries[e.RowIndex].EventType);
+            e.CellStyle.BackColor = color;
+            e.CellStyle.SelectionBackColor = color;
+            e.CellStyle.SelectionForeColor = SystemColors.ControlText;
+        }
+
+        /// <summary>
+        /// Chú thích khi đưa chuột vào ô: tên cũ của sự kiện đổi tên, hoặc chi tiết kích thước.
+        /// </summary>
+        private void dgvLogHistory_CellToolTipTextNeeded(object sender, DataGridViewCellToolTipTextNeededEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= displayedLogEntries.Count)
+            {
+                return;
+            }
+
+            FileEventLog entry = displayedLogEntries[e.RowIndex];
+
+            if (e.ColumnIndex == colLogFullPath.Index
+                && entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
+            {
+                e.ToolTipText = "Tên cũ: " + entry.OldFullPath;
+            }
+            else if (e.ColumnIndex == colLogSize.Index)
+            {
+                e.ToolTipText = GetSizeToolTip(entry);
+            }
+        }
+
+        /// <summary>
+        /// Bấm vào tiêu đề cột: sắp xếp theo cột đó; bấm lần nữa thì đảo chiều.
+        /// </summary>
+        private void dgvLogHistory_ColumnHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0)
+            {
+                return;
+            }
+
+            if (e.ColumnIndex == logSortColumn)
+            {
+                logSortAscending = !logSortAscending;
+            }
+            else
+            {
+                logSortColumn = e.ColumnIndex;
+
+                // Thời gian và kích thước: mặc định lớn/mới trước. Cột chữ: mặc định A → Z.
+                logSortAscending = e.ColumnIndex != colLogTime.Index && e.ColumnIndex != colLogSize.Index;
+            }
+
+            foreach (DataGridViewColumn column in dgvLogHistory.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = SortOrder.None;
+            }
+
+            dgvLogHistory.Columns[logSortColumn].HeaderCell.SortGlyphDirection =
+                logSortAscending ? SortOrder.Ascending : SortOrder.Descending;
+
+            displayedLogEntries = SortLogEntries(displayedLogEntries);
+            ShowLogEntries(displayedLogEntries);
+        }
+
+        /// <summary>
+        /// Sắp xếp danh sách nhật ký theo cột và chiều đang chọn, so sánh theo GIÁ TRỊ THẬT
+        /// (thời gian, số byte) chứ không theo chuỗi hiển thị.
+        /// </summary>
+        /// <remarks>
+        /// Dùng OrderBy của LINQ vì nó ổn định (stable): các dòng bằng nhau giữ nguyên thứ tự ghi
+        /// trong tệp. Khi sắp theo cột khác thời gian, các dòng bằng nhau xếp tiếp theo thời gian.
+        /// Tệp không đọc được kích thước (N/A) luôn nằm cuối, bất kể chiều sắp xếp.
+        /// </remarks>
+        private List<FileEventLog> SortLogEntries(List<FileEventLog> entries)
+        {
+            if (entries == null || entries.Count < 2)
+            {
+                return entries ?? new List<FileEventLog>();
+            }
+
+            int column = logSortColumn < 0 ? colLogTime.Index : logSortColumn;
+
+            if (column == colLogTime.Index)
+            {
+                // Tệp được ghi nối nên thứ tự sẵn có đã là cũ trước, mới sau: chỉ cần giữ hoặc đảo.
+                List<FileEventLog> byTime = entries.OrderBy(entry => entry.Time).ToList();
+                if (!logSortAscending)
                 {
-                    int index = dgvLogHistory.Rows.Add(
-                        entry.Time.ToString(LogTimeFormat),
-                        entry.EventType.ToString(),
-                        entry.FileName,
-                        GetSizeText(entry),
-                        entry.FullPath);
-
-                    DataGridViewRow row = dgvLogHistory.Rows[index];
-
-                    // Cùng cách tô màu với bảng ở tab Giám sát để hai bảng đọc giống nhau.
-                    Color color = GetEventTypeColor(entry.EventType);
-                    row.Cells[1].Style.BackColor = color;
-                    row.Cells[1].Style.SelectionBackColor = color;
-                    row.Cells[1].Style.SelectionForeColor = SystemColors.ControlText;
-
-                    // Bảng chỉ có 4 cột; tên cũ của sự kiện đổi tên đưa vào chú thích.
-                    if (entry.EventType == FileEventType.Renamed && !string.IsNullOrEmpty(entry.OldFullPath))
-                    {
-                        row.Cells[colLogFullPath.Index].ToolTipText = "Tên cũ: " + entry.OldFullPath;
-                    }
-
-                    row.Cells[colLogSize.Index].ToolTipText = GetSizeToolTip(entry);
+                    byTime.Reverse();
                 }
+
+                return byTime;
             }
-            finally
+
+            IOrderedEnumerable<FileEventLog> ordered;
+
+            if (column == colLogSize.Index)
             {
-                dgvLogHistory.ResumeLayout();
+                ordered = entries.OrderBy(entry => entry.FileSize.HasValue ? 0 : 1);
+                ordered = logSortAscending
+                    ? ordered.ThenBy(entry => entry.FileSize ?? 0)
+                    : ordered.ThenByDescending(entry => entry.FileSize ?? 0);
             }
+            else
+            {
+                Func<FileEventLog, string> key;
+                if (column == colLogType.Index)
+                {
+                    key = entry => entry.EventType.ToString();
+                }
+                else if (column == colLogFileName.Index)
+                {
+                    key = entry => entry.FileName;
+                }
+                else
+                {
+                    key = entry => entry.FullPath;
+                }
+
+                StringComparer comparer = StringComparer.CurrentCultureIgnoreCase;
+                ordered = logSortAscending
+                    ? entries.OrderBy(key, comparer)
+                    : entries.OrderByDescending(key, comparer);
+            }
+
+            return ordered.ThenByDescending(entry => entry.Time).ToList();
         }
 
         #endregion
@@ -1338,6 +1563,8 @@ namespace FileMonitorApps
             session.EventsMissed -= Session_EventsMissed;
             session.Faulted -= Session_Faulted;
             session.Stop();
+            searchDelayTimer.Stop();
+            searchDelayTimer.Dispose();
         }
 
         #endregion

@@ -69,7 +69,7 @@ namespace FileMonitorApps
         /// Bộ theo dõi của .NET, bọc cơ chế ReadDirectoryChangesW của Windows.
         /// null khi chưa chạy; mỗi lần Start tạo một đối tượng mới, Stop thì giải phóng.
         /// </summary>
-        private FileSystemWatcher watcher;
+        private volatile FileSystemWatcher watcher;
 
         /// <summary>
         /// Bộ chống trùng sự kiện. Xem lớp EventDebouncer để biết vì sao cần lọc trùng
@@ -325,6 +325,21 @@ namespace FileMonitorApps
         }
 
         /// <summary>
+        /// Sự kiện có đến từ bộ theo dõi của phiên HIỆN TẠI và phiên đó còn đang nhận sự kiện không.
+        /// </summary>
+        /// <remarks>
+        /// Sửa lỗi: bấm Dừng rồi Bắt đầu lại thật nhanh (hoặc đổi sang thư mục khác), các sự kiện
+        /// của watcher CŨ đã xếp hàng trong thread pool vẫn có thể chạy tới đây SAU khi watcher mới
+        /// đã bật — lúc đó acceptingEvents đã là true trở lại, nên chỉ kiểm tra cờ này là không đủ.
+        /// So sánh sender với watcher hiện tại để loại hẳn sự kiện của watcher cũ.
+        /// Trường watcher được đánh dấu volatile để luồng nền luôn thấy giá trị mới nhất.
+        /// </remarks>
+        private bool IsCurrentWatcher(object sender)
+        {
+            return acceptingEvents && sender != null && ReferenceEquals(sender, watcher);
+        }
+
+        /// <summary>
         /// Bổ sung kích thước tệp cho bản ghi trước khi phát sự kiện.
         /// </summary>
         /// <remarks>
@@ -350,7 +365,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Changed(object sender, FileSystemEventArgs e)
         {
-            if (!acceptingEvents)
+            if (!IsCurrentWatcher(sender))
             {
                 return;
             }
@@ -380,7 +395,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Created(object sender, FileSystemEventArgs e)
         {
-            if (!acceptingEvents)
+            if (!IsCurrentWatcher(sender))
             {
                 return;
             }
@@ -409,7 +424,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Deleted(object sender, FileSystemEventArgs e)
         {
-            if (!acceptingEvents)
+            if (!IsCurrentWatcher(sender))
             {
                 return;
             }
@@ -441,7 +456,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
-            if (!acceptingEvents)
+            if (!IsCurrentWatcher(sender))
             {
                 return;
             }
@@ -469,7 +484,7 @@ namespace FileMonitorApps
         /// </remarks>
         private void Watcher_Error(object sender, ErrorEventArgs e)
         {
-            if (!acceptingEvents)
+            if (!IsCurrentWatcher(sender))
             {
                 return;
             }
