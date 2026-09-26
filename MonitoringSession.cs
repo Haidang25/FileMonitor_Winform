@@ -23,6 +23,9 @@ namespace FileMonitorApps
             get { return MonitorErrorClassifier.DescribeFault(Kind); }
         }
 
+        /// <param name="kind">Nhóm sự cố.</param>
+        /// <param name="error">Ngoại lệ gốc, có thể null.</param>
+        /// <param name="folderPath">Thư mục đang giám sát.</param>
         public MonitorFaultEventArgs(MonitorErrorKind kind, Exception error, string folderPath)
         {
             Kind = kind;
@@ -51,8 +54,11 @@ namespace FileMonitorApps
     /// </remarks>
     internal class MonitoringSession : IDisposable
     {
+        /// <summary>Bộ theo dõi thư mục (bọc FileSystemWatcher).</summary>
         private readonly FileMonitorService monitor;
+        /// <summary>Nơi ghi nhật ký. Dùng chung với tab Nhật ký của giao diện.</summary>
         private readonly LogService logService;
+        /// <summary>Bộ đếm sự kiện của phiên hiện tại.</summary>
         private readonly EventCounter counter = new EventCounter();
 
         /// <summary>
@@ -62,8 +68,17 @@ namespace FileMonitorApps
         /// </summary>
         private readonly object sync = new object();
 
+        /// <summary>
+        /// Phiên đang chạy hay không. volatile để luồng nền luôn đọc được giá trị mới nhất
+        /// do luồng giao diện ghi, không cần khóa.
+        /// </summary>
         private volatile bool running;
+        /// <summary>Số lần tràn bộ đệm; tăng bằng Interlocked vì được ghi từ luồng nền.</summary>
         private int overflowCount;
+        /// <summary>
+        /// Số lần ghi lỗi của LogService lúc bắt đầu phiên. LogService đếm dồn từ khi chương trình
+        /// mở; lấy hiệu với mốc này để ra số lỗi của riêng phiên hiện tại.
+        /// </summary>
         private int writeFailuresAtStart;
 
         /// <summary>
@@ -78,7 +93,9 @@ namespace FileMonitorApps
         /// </summary>
         private int generation;
 
+        /// <summary>Sự cố đã làm phiên gần nhất tự dừng; None nếu không có.</summary>
         private volatile MonitorErrorKind lastFault = MonitorErrorKind.None;
+        /// <summary>Đã giải phóng hay chưa; chỉ đọc/ghi khi đang giữ sync.</summary>
         private bool disposed;
 
         /// <summary>
@@ -98,6 +115,8 @@ namespace FileMonitorApps
         /// </summary>
         public event EventHandler<MonitorFaultEventArgs> Faulted;
 
+        /// <summary>Tạo phiên giám sát ghi nhật ký vào logService.</summary>
+        /// <param name="logService">Nơi ghi nhật ký.</param>
         public MonitoringSession(LogService logService)
             : this(logService, new FileMonitorService())
         {
@@ -242,6 +261,13 @@ namespace FileMonitorApps
             }
         }
 
+        /// <summary>
+        /// Dừng phiên, hủy đăng ký sự kiện và giải phóng bộ theo dõi. Gọi nhiều lần không gây lỗi.
+        /// </summary>
+        /// <remarks>
+        /// Bỏ hết các phương thức đã đăng ký vào sự kiện: không bỏ thì phiên còn giữ tham chiếu
+        /// tới Form, Form không được thu hồi, và một sự kiện đến muộn có thể gọi vào Form đã đóng.
+        /// </remarks>
         public void Dispose()
         {
             lock (sync)
@@ -320,6 +346,8 @@ namespace FileMonitorApps
 
             Exception error = e != null ? e.Error : null;
 
+            // ĐIỂM KỸ THUẬT ③ (tràn bộ đệm): watcher VẪN CÒN SỐNG, chỉ một số sự kiện đã mất
+            // vĩnh viễn. Không dừng (dừng thì mất luôn các sự kiện sau), chỉ đếm và báo.
             if (e != null && e.IsBufferOverflow)
             {
                 Interlocked.Increment(ref overflowCount);

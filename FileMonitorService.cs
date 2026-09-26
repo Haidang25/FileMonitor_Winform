@@ -41,6 +41,7 @@ namespace FileMonitorApps
             get { return Error is DirectoryNotFoundException; }
         }
 
+        /// <param name="error">Ngoại lệ gây ra sự cố, có thể null.</param>
         public MonitorErrorEventArgs(Exception error)
         {
             Error = error;
@@ -73,6 +74,10 @@ namespace FileMonitorApps
         /// <summary>Mẫu lọc mặc định khi bên gọi không chỉ định.</summary>
         private const string DefaultFilter = "*.*";
 
+        /// <summary>
+        /// Bộ theo dõi của .NET, bọc cơ chế ReadDirectoryChangesW của Windows.
+        /// null khi chưa chạy; mỗi lần Start tạo một đối tượng mới, Stop thì giải phóng.
+        /// </summary>
         private FileSystemWatcher watcher;
 
         /// <summary>
@@ -216,6 +221,8 @@ namespace FileMonitorApps
             //
             // Bộ đệm nằm trong vùng nhớ non-paged của hệ điều hành nên đặt càng lớn càng tốn,
             // vì vậy chỉ nới lên mức tối đa khi thực sự cần: lúc theo dõi cả cây thư mục con.
+            // ĐIỂM KỸ THUẬT ③ (tràn bộ đệm): nới bộ đệm để giảm khả năng mất sự kiện;
+            // khi vẫn tràn thì sự kiện Error được xử lý ở Watcher_Error → MonitoringSession.
             watcher.InternalBufferSize = includeSubdirectories
                 ? BufferSizeRecursive
                 : BufferSizeSingleFolder;
@@ -387,6 +394,7 @@ namespace FileMonitorApps
                 return;
             }
 
+            // ĐIỂM KỸ THUẬT ② (sự kiện trùng lặp): chỉ báo lên nếu không phải bản trùng.
             if (e == null || !debouncer.ShouldReport(e.FullPath))
             {
                 return;

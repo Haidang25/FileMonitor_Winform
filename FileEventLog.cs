@@ -10,7 +10,7 @@ namespace FileMonitorApps
     /// <remarks>
     /// Lớp này tự chịu trách nhiệm chuyển mình thành một dòng văn bản và ngược lại
     /// (ToLogLine / TryParse). Nhờ vậy khi cần đổi định dạng lưu trữ thì chỉ sửa ở đây,
-    /// còn LogStorage chỉ lo việc đọc ghi tệp.
+    /// còn LogService chỉ lo việc đọc ghi tệp.
     /// Lớp không tham chiếu tới control nào nên kiểm thử được độc lập.
     /// </remarks>
     internal class FileEventLog
@@ -54,6 +54,10 @@ namespace FileMonitorApps
         /// </summary>
         public string Note { get; set; }
 
+        /// <summary>
+        /// Tạo bản ghi rỗng, thời gian là lúc hiện tại. Các chuỗi để rỗng thay vì null
+        /// để bên dùng không phải kiểm tra null.
+        /// </summary>
         public FileEventLog()
         {
             Time = DateTime.Now;

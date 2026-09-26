@@ -18,8 +18,14 @@ namespace FileMonitorApps
     /// </remarks>
     internal class EventCounter
     {
+        /// <summary>Số sự kiện của từng loại. Loại chưa xuất hiện thì chưa có khóa.</summary>
         private readonly Dictionary<FileEventType, int> counts = new Dictionary<FileEventType, int>();
+        /// <summary>Khóa bảo vệ counts và total khi được gọi từ nhiều luồng.</summary>
         private readonly object syncLock = new object();
+        /// <summary>
+        /// Tổng số sự kiện. Giữ riêng thay vì cộng dồn từ counts mỗi lần đọc,
+        /// vì nhãn bộ đếm được cập nhật rất thường xuyên.
+        /// </summary>
         private int total;
 
         /// <summary>Tổng số sự kiện đã đếm.</summary>

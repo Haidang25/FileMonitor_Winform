@@ -147,6 +147,7 @@ namespace FileMonitorApps
             return "Đã xảy ra lỗi ngoài dự kiến.";
         }
 
+        /// <summary>Lỗi thiếu quyền, ở cả dạng .NET (UnauthorizedAccessException) lẫn dạng Win32 (mã 5).</summary>
         private static bool IsAccessDenied(Exception error)
         {
             Win32Exception win32 = error as Win32Exception;
@@ -154,6 +155,7 @@ namespace FileMonitorApps
                 || (win32 != null && win32.NativeErrorCode == ErrorAccessDenied);
         }
 
+        /// <summary>Thư mục đã cho không còn tồn tại. Đường dẫn rỗng thì coi như không biết (false).</summary>
         private static bool FolderMissing(string folderPath)
         {
             string folder = (folderPath ?? string.Empty).Trim();

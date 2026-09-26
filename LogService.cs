@@ -536,6 +536,8 @@ namespace FileMonitorApps
         /// </remarks>
         private FileStream OpenForAppend(string path)
         {
+            // ĐIỂM KỸ THUẬT ④ (tệp bị khóa): tệp nhật ký có thể đang bị phần mềm khác giữ
+            // trong chốc lát → bắt IOException và thử mở lại, thay vì mất bản ghi.
             for (int attempt = 1; ; attempt++)
             {
                 try
@@ -717,6 +719,8 @@ namespace FileMonitorApps
         /// </remarks>
         private string[] ReadLines(string path)
         {
+            // ĐIỂM KỸ THUẬT ④ (tệp bị khóa): mở với FileShare.ReadWrite để đọc được
+            // cả khi một chương trình khác đang mở tệp để ghi.
             List<string> lines = new List<string>();
 
             lock (fileLock)

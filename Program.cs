@@ -8,11 +8,45 @@ using System.Windows.Forms;
 
 namespace FileMonitorApps
 {
+    /// <summary>
+    /// Điểm vào của chương trình FileMonitor.
+    /// </summary>
+    /// <remarks>
+    /// BẢN ĐỒ MÃ NGUỒN (dùng khi viết Chương 3 và khi bảo vệ)
+    ///
+    /// Lớp giao diện (Presentation)
+    ///   MainForm                 Chỉ nhận thao tác, nghe sự kiện, chuyển luồng, hiển thị.
+    ///
+    /// Lớp nghiệp vụ (Services)
+    ///   MonitoringSession        Một phiên giám sát: theo dõi → ghi nhật ký → đếm → xử lý sự cố.
+    ///   FileMonitorService       Bọc FileSystemWatcher, chống trùng, phát hiện mất thư mục.
+    ///   LogService               Ghi/đọc/lọc/xuất/xóa nhật ký, mỗi ngày một tệp.
+    ///   FolderValidator          Kiểm tra thư mục trước khi giám sát.
+    ///   MonitorErrorClassifier   Phân loại sự cố và viết lời giải thích.
+    ///   FileSizeProbe            Đọc kích thước tệp, bắt mọi ngoại lệ.
+    ///   EventDebouncer           Chống trùng sự kiện.
+    ///   EventCounter             Đếm sự kiện theo loại.
+    ///
+    /// Lớp dữ liệu (Models)
+    ///   FileEventLog, FileEventType, LogFilter, FileEventDetectedEventArgs
+    ///
+    /// BỐN ĐIỂM KỸ THUẬT CỐT LÕI — tìm chuỗi "ĐIỂM KỸ THUẬT" trong mã nguồn để thấy đúng chỗ:
+    ///   ① Cross-thread      MainForm.Session_EventRecorded, MainForm.FlushPendingEvents
+    ///   ② Sự kiện trùng lặp EventDebouncer.ShouldReport, FileMonitorService.Watcher_Changed
+    ///   ③ Tràn bộ đệm       FileMonitorService.Start (InternalBufferSize),
+    ///                        MonitoringSession.Monitor_ErrorOccurred
+    ///   ④ Tệp bị khóa       FileSizeProbe.TryGetSize, LogService.OpenForAppend, LogService.ReadLines
+    /// </remarks>
     internal static class Program
     {
         /// <summary>
-        /// The main entry point for the application.
+        /// Điểm bắt đầu của chương trình: bật giao diện kiểu Windows hiện đại, đăng ký bộ bắt
+        /// lỗi toàn cục, rồi mở cửa sổ chính và chạy vòng lặp thông điệp.
         /// </summary>
+        /// <remarks>
+        /// [STAThread]: Windows Forms (hộp thoại chọn thư mục, clipboard...) bắt buộc luồng
+        /// giao diện chạy ở chế độ Single-Threaded Apartment của COM.
+        /// </remarks>
         [STAThread]
         static void Main()
         {

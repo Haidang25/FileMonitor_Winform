@@ -34,6 +34,7 @@ namespace FileMonitorApps
         /// </remarks>
         public FileEventType? EventType { get; set; }
 
+        /// <summary>Giá trị gốc của Keyword, đúng như người dùng gõ.</summary>
         private string keyword = string.Empty;
 
         /// <summary>
@@ -60,6 +61,7 @@ namespace FileMonitorApps
             }
         }
 
+        /// <summary>Tạo bộ lọc mặc định: 7 ngày gần nhất, mọi loại, không từ khóa.</summary>
         public LogFilter()
         {
             // Mặc định khớp với InitDateFilter của MainForm: 7 ngày gần nhất, mọi loại.

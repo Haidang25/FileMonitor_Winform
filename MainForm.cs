@@ -10,9 +10,15 @@ using System.Windows.Forms;
 namespace FileMonitorApps
 {
     /// <summary>
-    /// Cửa sổ chính của chương trình FileMonitor.
-    /// Tab "Giám sát" cho phép người dùng chọn thư mục cần theo dõi.
+    /// Cửa sổ chính của chương trình FileMonitor, gồm hai tab:
+    /// "Giám sát" (chọn thư mục, bật/tắt, xem thay đổi theo thời gian thực) và
+    /// "Nhật ký" (xem lại, tìm kiếm, lọc, xuất, xóa nhật ký đã ghi).
     /// </summary>
+    /// <remarks>
+    /// Lớp giao diện: KHÔNG chứa logic nghiệp vụ. Mọi việc theo dõi, ghi nhật ký, kiểm tra
+    /// thư mục và xử lý sự cố nằm ở lớp Services (xem bản đồ mã nguồn trong Program.cs).
+    /// Form chỉ nhận thao tác, chuyển dữ liệu về luồng giao diện và hiển thị.
+    /// </remarks>
     public partial class MainForm : Form
     {
         /// <summary>
@@ -79,6 +85,14 @@ namespace FileMonitorApps
         /// </summary>
         private bool logLoaded;
 
+        /// <summary>
+        /// Tạo cửa sổ và đăng ký nghe ba sự kiện của phiên giám sát.
+        /// </summary>
+        /// <remarks>
+        /// Đây là mô hình publisher–subscriber: MonitoringSession phát sự kiện (publisher),
+        /// Form đăng ký phương thức xử lý bằng toán tử += (subscriber). Hai bên không cần
+        /// biết chi tiết của nhau, chỉ cần thống nhất chữ ký delegate.
+        /// </remarks>
         public MainForm()
         {
             InitializeComponent();
@@ -89,6 +103,10 @@ namespace FileMonitorApps
             session.Faulted += Session_Faulted;
         }
 
+        /// <summary>
+        /// Chuẩn bị giao diện lần đầu: gợi ý trong ô nhập, danh sách lọc, trạng thái nút,
+        /// rồi chuyển nhật ký của phiên bản cũ (nếu có) sang định dạng mới.
+        /// </summary>
         private void MainForm_Load(object sender, EventArgs e)
         {
             SetCueBanner(txtFolderPath, "Ví dụ: D:\\MonitorTest");
@@ -857,6 +875,10 @@ namespace FileMonitorApps
                 return;
             }
 
+            // ĐIỂM KỸ THUẬT ① (cross-thread): đang ở LUỒNG NỀN, KHÔNG được đụng tới control.
+            // Gọi thẳng dgvEvents.Rows.Add ở đây sẽ ném InvalidOperationException
+            // "Cross-thread operation not valid". Chỉ cất bản ghi vào hàng chờ rồi nhờ
+            // luồng giao diện xử lý bằng BeginInvoke.
             lock (pendingLock)
             {
                 pendingEvents.Add(e.Entry);
@@ -890,6 +912,8 @@ namespace FileMonitorApps
         /// </summary>
         private void FlushPendingEvents()
         {
+            // ĐIỂM KỸ THUẬT ① (cross-thread): hàm này luôn chạy trên LUỒNG GIAO DIỆN, được gọi qua
+            // BeginInvoke từ Session_EventRecorded. Chỉ ở đây mới được đụng tới dgvEvents.
             // Hạ cờ TRƯỚC khi lấy dữ liệu ra: sự kiện đến trong lúc đang cập nhật sẽ
             // xếp hàng được một lượt mới, không bị bỏ sót.
             Interlocked.Exchange(ref flushScheduled, 0);
@@ -1418,9 +1442,14 @@ namespace FileMonitorApps
         /// </summary>
         private class FilterItem
         {
+            /// <summary>Nhãn hiện cho người dùng, ví dụ "*.txt (Văn bản)".</summary>
             public string Display { get; private set; }
+            /// <summary>Giá trị thật sự dùng khi lọc, ví dụ "*.txt". Rỗng nghĩa là không lọc.</summary>
             public string Pattern { get; private set; }
 
+            /// <summary>Tạo một mục lọc.</summary>
+            /// <param name="display">Nhãn hiển thị.</param>
+            /// <param name="pattern">Giá trị dùng để lọc.</param>
             public FilterItem(string display, string pattern)
             {
                 Display = display;
@@ -1428,6 +1457,7 @@ namespace FileMonitorApps
             }
 
             // ComboBox dùng ToString() để hiển thị nên chỉ cần trả về nhãn.
+            /// <summary>ComboBox gọi ToString() để lấy chữ hiển thị.</summary>
             public override string ToString()
             {
                 return Display;
@@ -1476,8 +1506,13 @@ namespace FileMonitorApps
 
         // .NET Framework chưa có thuộc tính PlaceholderText cho TextBox,
         // nên dùng thông điệp EM_SETCUEBANNER của Windows để hiển thị dòng gợi ý mờ.
+        /// <summary>Mã thông điệp Win32 yêu cầu ô nhập hiện dòng gợi ý mờ.</summary>
         private const int EM_SETCUEBANNER = 0x1501;
 
+        /// <summary>
+        /// Hàm Win32 gửi một thông điệp tới cửa sổ (ở đây là ô nhập), khai báo qua P/Invoke
+        /// vì .NET Framework không có sẵn cách gọi tương ứng.
+        /// </summary>
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
 

@@ -70,6 +70,8 @@ namespace FileMonitorApps
         /// </remarks>
         public static bool TryGetSize(string path, out long? size, out string note)
         {
+            // ĐIỂM KỸ THUẬT ④ (tệp bị khóa / đã biến mất): mọi lỗi đều bị bắt tại đây,
+            // không đọc được thì trả về "N/A" kèm lý do, không bao giờ làm sập luồng watcher.
             size = null;
             note = string.Empty;
 

@@ -38,15 +38,22 @@ namespace FileMonitorApps
         /// </summary>
         public const int DefaultMaxTrackedKeys = 1000;
 
+        /// <summary>
+        /// Thời điểm gần nhất của từng khóa (đường dẫn). So sánh không phân biệt hoa/thường
+        /// vì trên Windows "A.txt" và "a.txt" là cùng một tệp.
+        /// </summary>
         private readonly Dictionary<string, DateTime> lastSeen =
             new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Khóa bảo vệ lastSeen: nhiều luồng của watcher gọi vào cùng lúc.</summary>
         private readonly object syncLock = new object();
 
         /// <summary>Nguồn thời gian. Tách ra để kiểm thử không phải chờ thật.</summary>
         private readonly Func<DateTime> clock;
 
+        /// <summary>Ngưỡng gộp, tính bằng mili giây.</summary>
         private readonly int intervalMilliseconds;
+        /// <summary>Số khóa tối đa được nhớ trước khi dọn bớt.</summary>
         private readonly int maxTrackedKeys;
 
         /// <summary>Ngưỡng gộp đang dùng, tính bằng mili giây.</summary>
@@ -67,11 +74,14 @@ namespace FileMonitorApps
             }
         }
 
+        /// <summary>Tạo bộ chống trùng với ngưỡng mặc định 500 ms.</summary>
         public EventDebouncer()
             : this(DefaultIntervalMilliseconds, DefaultMaxTrackedKeys, null)
         {
         }
 
+        /// <summary>Tạo bộ chống trùng với ngưỡng gộp tùy chọn.</summary>
+        /// <param name="intervalMilliseconds">Ngưỡng gộp, tính bằng mili giây.</param>
         public EventDebouncer(int intervalMilliseconds)
             : this(intervalMilliseconds, DefaultMaxTrackedKeys, null)
         {
@@ -87,6 +97,7 @@ namespace FileMonitorApps
             this.clock = clock != null ? clock : DefaultClock;
         }
 
+        /// <summary>Nguồn thời gian thật, dùng khi chạy chương trình (không phải kiểm thử).</summary>
         private static DateTime DefaultClock()
         {
             return DateTime.Now;
@@ -100,6 +111,8 @@ namespace FileMonitorApps
         /// <returns>true nếu nên báo lên; false nếu là bản trùng.</returns>
         public bool ShouldReport(string key)
         {
+            // ĐIỂM KỸ THUẬT ② (sự kiện trùng lặp): một lần lưu tệp sinh 2–4 sự kiện Changed.
+            // Nhớ thời điểm gần nhất của TỪNG đường dẫn, bỏ qua lần đến lại trong vòng 500 ms.
             if (string.IsNullOrEmpty(key))
             {
                 return false;

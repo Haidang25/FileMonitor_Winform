@@ -25,6 +25,7 @@ namespace FileMonitorApps
         /// </summary>
         public string Warning { get; private set; }
 
+        /// <summary>Chỉ tạo qua Valid() hoặc Invalid() để kết quả luôn nhất quán.</summary>
         private FolderValidationResult()
         {
             NormalizedPath = string.Empty;
@@ -32,6 +33,9 @@ namespace FileMonitorApps
             Warning = string.Empty;
         }
 
+        /// <summary>Tạo kết quả hợp lệ.</summary>
+        /// <param name="normalizedPath">Đường dẫn đã chuẩn hóa.</param>
+        /// <param name="warning">Cảnh báo không chặn, có thể rỗng.</param>
         public static FolderValidationResult Valid(string normalizedPath, string warning)
         {
             FolderValidationResult result = new FolderValidationResult();
@@ -41,6 +45,8 @@ namespace FileMonitorApps
             return result;
         }
 
+        /// <summary>Tạo kết quả không hợp lệ.</summary>
+        /// <param name="errorMessage">Lý do, viết sẵn để hiện cho người dùng.</param>
         public static FolderValidationResult Invalid(string errorMessage)
         {
             FolderValidationResult result = new FolderValidationResult();
@@ -577,16 +583,21 @@ namespace FileMonitorApps
 
         #region Tiện ích
 
+        /// <summary>Dấu gạch chéo xuôi hoặc ngược (Windows chấp nhận cả hai).</summary>
         private static bool IsSeparator(char c)
         {
             return c == '\\' || c == '/';
         }
 
+        /// <summary>Chữ cái A–Z hoặc a–z, dùng làm tên ổ đĩa.</summary>
         private static bool IsDriveLetter(char c)
         {
             return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
         }
 
+        /// <summary>
+        /// Đưa đường dẫn về dạng thống nhất để so sánh: dùng dấu "\" và luôn kết thúc bằng một dấu "\".
+        /// </summary>
         private static string NormalizeForCompare(string path)
         {
             return path.Replace('/', '\\').TrimEnd('\\') + "\\";
